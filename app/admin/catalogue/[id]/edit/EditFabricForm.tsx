@@ -1,0 +1,303 @@
+﻿'use client';
+
+import { FormEvent, useState } from 'react';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+
+type EditFabricFormProps = {
+  fabricId: string;
+  initialName: string;
+  initialColour: string;
+  initialType: string;
+  initialPrice: string;
+  initialQuantity: string;
+  initialImageUrl: string | null;
+  initialIsActive: boolean;
+  currentImagePath: string | null;
+};
+
+export default function EditFabricForm({
+  fabricId,
+  initialName,
+  initialColour,
+  initialType,
+  initialPrice,
+  initialQuantity,
+  initialImageUrl,
+  initialIsActive,
+  currentImagePath,
+}: EditFabricFormProps) {
+  const router = useRouter();
+
+  const [name, setName] = useState(initialName);
+  const [colour, setColour] = useState(initialColour);
+  const [type, setType] = useState(initialType);
+  const [price, setPrice] = useState(initialPrice);
+  const [quantity, setQuantity] = useState(initialQuantity);
+  const [isActive, setIsActive] = useState(initialIsActive);
+  const [image, setImage] = useState<File | null>(null);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setError('');
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      if (!name.trim()) {
+        throw new Error('Please enter a fabric name.');
+      }
+
+      const numericPrice = Number(price);
+      const numericQuantity = Number(quantity);
+
+      if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+        throw new Error('Please enter a valid price.');
+      }
+
+      if (!Number.isInteger(numericQuantity) || numericQuantity < 0) {
+        throw new Error('Please enter a valid quantity.');
+      }
+
+      if (image) {
+        const allowedTypes = [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+        ];
+
+        if (!allowedTypes.includes(image.type)) {
+          throw new Error('Please upload a JPG, PNG, or WebP image.');
+        }
+
+        if (image.size > 5 * 1024 * 1024) {
+          throw new Error('Image must be smaller than 5 MB.');
+        }
+      }
+
+      let newImagePath: string | null = null;
+
+      if (image) {
+        const fileExtension =
+          image.name.split('.').pop()?.toLowerCase() || 'jpg';
+
+        const fileName = `${crypto.randomUUID()}.${fileExtension}`;
+        newImagePath = `fabrics/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('fabrics')
+          .upload(newImagePath, image, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: image.type,
+          });
+
+        if (uploadError) {
+          throw new Error(
+            `Image upload failed: ${uploadError.message}`
+          );
+        }
+      }
+
+      const { error: updateError } = await supabase
+        .from('fabrics')
+        .update({
+          name: name.trim(),
+          colour: colour.trim() || null,
+          type: type.trim() || null,
+          price: numericPrice,
+          quantity: numericQuantity,
+          image_url: newImagePath || currentImagePath,
+          is_active: isActive,
+        })
+        .eq('id', fabricId);
+
+      if (updateError) {
+        if (newImagePath) {
+          await supabase.storage
+            .from('fabrics')
+            .remove([newImagePath]);
+        }
+
+        throw new Error(
+          `Could not update fabric: ${updateError.message}`
+        );
+      }
+
+      if (newImagePath && currentImagePath) {
+        await supabase.storage
+          .from('fabrics')
+          .remove([currentImagePath]);
+      }
+
+      router.push('/admin/catalogue');
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong while updating the fabric.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ marginTop: '30px' }}>
+      {initialImageUrl && (
+        <div style={{ marginBottom: '25px' }}>
+          <p>
+            <strong>Current image</strong>
+          </p>
+
+          <Image
+            src={initialImageUrl}
+            alt={initialName}
+            width={500}
+            height={360}
+            unoptimized
+            style={{
+              width: '100%',
+              maxWidth: '500px',
+              height: '300px',
+              objectFit: 'contain',
+              background: '#f3f3f3',
+              borderRadius: '8px',
+            }}
+          />
+        </div>
+      )}
+
+      <div style={{ marginBottom: '20px' }}>
+        <label htmlFor="name">
+          <strong>Fabric name</strong>
+        </label>
+        <br />
+        <input
+          id="name"
+          type="text"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          required
+          style={{ width: '100%', padding: '12px', marginTop: '6px' }}
+        />
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <label htmlFor="colour">
+          <strong>Colour</strong>
+        </label>
+        <br />
+        <input
+          id="colour"
+          type="text"
+          value={colour}
+          onChange={(event) => setColour(event.target.value)}
+          style={{ width: '100%', padding: '12px', marginTop: '6px' }}
+        />
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <label htmlFor="type">
+          <strong>Fabric type</strong>
+        </label>
+        <br />
+        <input
+          id="type"
+          type="text"
+          value={type}
+          onChange={(event) => setType(event.target.value)}
+          style={{ width: '100%', padding: '12px', marginTop: '6px' }}
+        />
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <label htmlFor="price">
+          <strong>Price</strong>
+        </label>
+        <br />
+        <input
+          id="price"
+          type="number"
+          min="0"
+          step="0.01"
+          value={price}
+          onChange={(event) => setPrice(event.target.value)}
+          required
+          style={{ width: '100%', padding: '12px', marginTop: '6px' }}
+        />
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <label htmlFor="quantity">
+          <strong>Quantity available</strong>
+        </label>
+        <br />
+        <input
+          id="quantity"
+          type="number"
+          min="0"
+          step="1"
+          value={quantity}
+          onChange={(event) => setQuantity(event.target.value)}
+          required
+          style={{ width: '100%', padding: '12px', marginTop: '6px' }}
+        />
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <label htmlFor="image">
+          <strong>Replace image</strong>
+        </label>
+        <br />
+        <input
+          id="image"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={(event) =>
+            setImage(event.target.files?.[0] || null)
+          }
+          style={{ marginTop: '8px' }}
+        />
+        <p style={{ fontSize: '14px' }}>
+          Leave empty to keep the current image. JPG, PNG or WebP,
+          maximum 5 MB.
+        </p>
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <label>
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(event) => setIsActive(event.target.checked)}
+          />{' '}
+          Fabric is active and available to customers
+        </label>
+      </div>
+
+      {error && (
+        <p
+          style={{
+            padding: '12px',
+            borderRadius: '8px',
+            background: '#ffe5e5',
+          }}
+        >
+          {error}
+        </p>
+      )}
+
+      <button type="submit" disabled={loading}>
+        {loading ? 'Saving Changes...' : 'Save Changes'}
+      </button>
+    </form>
+  );
+}
