@@ -39,8 +39,7 @@ export default async function AddProductPage() {
         </h1>
 
         <p style={{ color: '#666', margin: 0 }}>
-          Add one fabric product and upload all of its available pictures at
-          once.
+          Add product details and the reference codes for its WhatsApp pictures.
         </p>
       </div>
 
