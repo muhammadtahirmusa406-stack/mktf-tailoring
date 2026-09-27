@@ -1,7 +1,24 @@
+import Image from 'next/image';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 
-type Props = {
-  searchParams: Promise<{ fabric?: string | string[] }>;
+type SearchParams = {
+  fabric?: string | string[];
+  category?: string | string[];
+  design?: string | string[];
+};
+
+type Props = { searchParams: Promise<SearchParams> };
+
+type Category = { id: string; name: string; display_order: number };
+type Design = {
+  id: string;
+  reference_code: string | null;
+  category_id: string;
+  name: string;
+  description: string | null;
+  image_path: string | null;
+  display_order: number;
 };
 
 function MessageCard({
@@ -14,27 +31,8 @@ function MessageCard({
   tone?: 'neutral' | 'error';
 }) {
   return (
-    <section
-      style={{
-        width: '100%',
-        maxWidth: 520,
-        padding: 24,
-        border: '1px solid #e3e3e3',
-        borderRadius: 16,
-        background: '#fff',
-        boxShadow: '0 8px 28px rgba(0, 0, 0, 0.05)',
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: tone === 'error' ? '#a32121' : '#666',
-          fontSize: 13,
-          fontWeight: 700,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-        }}
-      >
+    <section style={messageCardStyle}>
+      <p style={{ margin: 0, color: tone === 'error' ? '#a32121' : '#666', fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
         WhatsApp fabric selection
       </p>
       <h1 style={{ margin: '12px 0', fontSize: 26, lineHeight: 1.2 }}>{title}</h1>
@@ -43,11 +41,20 @@ function MessageCard({
   );
 }
 
+function orderHref(fabric: string, category?: string, design?: string) {
+  const params = new URLSearchParams({ fabric });
+  if (category) params.set('category', category);
+  if (design) params.set('design', design);
+  return `/order?${params.toString()}`;
+}
+
 export default async function OrderEntryPage({ searchParams }: Props) {
   const params = await searchParams;
-  const referenceCode = typeof params.fabric === 'string' ? params.fabric.trim() : '';
+  const fabricReference = typeof params.fabric === 'string' ? params.fabric.trim() : '';
+  const requestedCategory = typeof params.category === 'string' ? params.category : '';
+  const requestedDesign = typeof params.design === 'string' ? params.design : '';
 
-  if (!referenceCode) {
+  if (!fabricReference) {
     return (
       <main style={pageStyle}>
         <MessageCard title="Choose a fabric from WhatsApp">
@@ -61,37 +68,17 @@ export default async function OrderEntryPage({ searchParams }: Props) {
   const { data: option, error: optionError } = await supabase
     .from('fabric_options')
     .select('fabric_product_id, reference_code, is_active')
-    .eq('reference_code', referenceCode)
+    .eq('reference_code', fabricReference)
     .maybeSingle();
 
   if (optionError) {
-    return (
-      <main style={pageStyle}>
-        <MessageCard title="We couldn’t load this fabric" tone="error">
-          <p style={{ marginBottom: 0 }}>Please try opening the WhatsApp link again in a moment.</p>
-        </MessageCard>
-      </main>
-    );
+    return <main style={pageStyle}><MessageCard title="We couldn’t load this fabric" tone="error"><p style={{ marginBottom: 0 }}>Please try opening the WhatsApp link again in a moment.</p></MessageCard></main>;
   }
-
   if (!option) {
-    return (
-      <main style={pageStyle}>
-        <MessageCard title="Fabric reference not found" tone="error">
-          <p style={{ marginBottom: 0 }}>That fabric reference could not be found.</p>
-        </MessageCard>
-      </main>
-    );
+    return <main style={pageStyle}><MessageCard title="Fabric reference not found" tone="error"><p style={{ marginBottom: 0 }}>That fabric reference could not be found.</p></MessageCard></main>;
   }
-
   if (!option.is_active) {
-    return (
-      <main style={pageStyle}>
-        <MessageCard title="Fabric no longer available" tone="error">
-          <p style={{ marginBottom: 0 }}>This fabric is no longer available.</p>
-        </MessageCard>
-      </main>
-    );
+    return <main style={pageStyle}><MessageCard title="Fabric no longer available" tone="error"><p style={{ marginBottom: 0 }}>This fabric is no longer available.</p></MessageCard></main>;
   }
 
   const { data: product, error: productError } = await supabase
@@ -102,70 +89,170 @@ export default async function OrderEntryPage({ searchParams }: Props) {
     .maybeSingle();
 
   if (productError) {
-    return (
-      <main style={pageStyle}>
-        <MessageCard title="We couldn’t load this fabric" tone="error">
-          <p style={{ marginBottom: 0 }}>Please try opening the WhatsApp link again in a moment.</p>
-        </MessageCard>
-      </main>
-    );
+    return <main style={pageStyle}><MessageCard title="We couldn’t load this fabric" tone="error"><p style={{ marginBottom: 0 }}>Please try opening the WhatsApp link again in a moment.</p></MessageCard></main>;
+  }
+  if (!product) {
+    return <main style={pageStyle}><MessageCard title="Fabric no longer available" tone="error"><p style={{ marginBottom: 0 }}>This fabric is no longer available.</p></MessageCard></main>;
   }
 
-  if (!product) {
-    return (
-      <main style={pageStyle}>
-        <MessageCard title="Fabric no longer available" tone="error">
-          <p style={{ marginBottom: 0 }}>This fabric is no longer available.</p>
-        </MessageCard>
-      </main>
-    );
+  const { data: categoryData, error: categoriesError } = await supabase
+    .from('design_categories')
+    .select('id, name, display_order')
+    .eq('is_active', true)
+    .order('display_order', { ascending: true });
+  const categories = (categoryData ?? []) as Category[];
+  const category = categories.find((item) => item.name === requestedCategory) ?? null;
+  const invalidCategory = Boolean(requestedCategory && !category && !categoriesError);
+
+  let designs: Design[] = [];
+  let designsError = '';
+  if (category) {
+    const result = await supabase
+      .from('design_items')
+      .select('id, reference_code, category_id, name, description, image_path, display_order')
+      .eq('category_id', category.id)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true });
+    if (result.error) designsError = result.error.message;
+    designs = (result.data ?? []) as Design[];
   }
+
+  const selectedDesign = category && requestedDesign
+    ? designs.find((design) => design.reference_code === requestedDesign) ?? null
+    : null;
+  const invalidDesign = Boolean(category && requestedDesign && !selectedDesign && !designsError);
+
+  const paths = designs.map((design) => design.image_path).filter((path): path is string => Boolean(path));
+  const signedUrlByPath = new Map<string, string>();
+  let imagesError = '';
+  if (paths.length) {
+    const { data, error } = await supabase.storage.from('designs').createSignedUrls(paths, 60 * 60);
+    if (error) imagesError = error.message;
+    data?.forEach((image, index) => {
+      if (image?.signedUrl) signedUrlByPath.set(paths[index], image.signedUrl);
+    });
+  }
+
+  const selectedImageUrl = selectedDesign?.image_path ? signedUrlByPath.get(selectedDesign.image_path) ?? null : null;
 
   return (
     <main style={pageStyle}>
-      <section
-        style={{
-          width: '100%',
-          maxWidth: 520,
-          overflow: 'hidden',
-          border: '1px solid #e3e3e3',
-          borderRadius: 16,
-          background: '#fff',
-          boxShadow: '0 8px 28px rgba(0, 0, 0, 0.05)',
-        }}
-      >
-        <div style={{ padding: 24 }}>
-          <p style={{ margin: 0, color: '#176b4d', fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Selected from WhatsApp
-          </p>
-          <h1 style={{ margin: '12px 0 8px', fontSize: 28, lineHeight: 1.2 }}>{product.name}</h1>
-          {product.type && <p style={{ margin: '0 0 20px', color: '#666' }}>{product.type}</p>}
-
-          <div style={{ padding: 16, borderRadius: 12, background: '#f6f8f7' }}>
-            <p style={{ margin: 0, color: '#666', fontSize: 13 }}>WhatsApp picture reference</p>
-            <p style={{ margin: '5px 0 0', fontSize: 19, fontWeight: 700, letterSpacing: '0.03em', overflowWrap: 'anywhere' }}>{option.reference_code}</p>
+      <div style={{ width: '100%', maxWidth: 1080, display: 'grid', gap: 18 }}>
+        <section style={fabricCardStyle}>
+          <p style={{ margin: 0, color: '#176b4d', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Selected from WhatsApp</p>
+          <h1 style={{ margin: '10px 0 4px', fontSize: 25 }}>{product.name}</h1>
+          {product.type && <p style={{ margin: '0 0 12px', color: '#666' }}>{product.type}</p>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <span style={referenceChipStyle}>Fabric reference: {option.reference_code}</span>
+            <strong style={{ fontSize: 21 }}>₦{Number(product.price).toLocaleString('en-NG')}</strong>
           </div>
+        </section>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16, marginTop: 22 }}>
-            <span style={{ color: '#666' }}>Product price</span>
-            <strong style={{ fontSize: 24 }}>₦{Number(product.price).toLocaleString('en-NG')}</strong>
+        <section>
+          <h2 style={{ margin: '8px 0 5px', fontSize: 23 }}>Choose a design category</h2>
+          <p style={{ margin: '0 0 14px', color: '#666' }}>Your fabric selection will stay with you as you choose a design.</p>
+          {categoriesError ? (
+            <p role="alert" style={errorStyle}>Could not load design categories. Please try again.</p>
+          ) : categories.length === 0 ? (
+            <p style={emptyStyle}>There are no design categories available right now.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 10 }}>
+              {categories.map((item) => {
+                const isSelected = category?.id === item.id;
+                return (
+                  <Link key={item.id} href={orderHref(fabricReference, item.name)} aria-current={isSelected ? 'page' : undefined}
+                    style={{ ...categoryButtonStyle, ...(isSelected ? selectedCategoryStyle : {}) }}>
+                    {item.name}{isSelected ? ' ✓' : ''}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+          {invalidCategory && <p role="alert" style={{ ...errorStyle, marginTop: 12 }}>That category is no longer available. Choose an active category to continue.</p>}
+        </section>
+
+        {category && (
+          <section>
+            <div style={{ marginBottom: 14 }}>
+              <h2 style={{ margin: '4px 0', fontSize: 23 }}>{category.name} designs</h2>
+              <p style={{ margin: 0, color: '#666' }}>Choose one design. Each card shows its permanent reference.</p>
+            </div>
+            {designsError ? (
+              <p role="alert" style={errorStyle}>Could not load designs for this category. Please try again.</p>
+            ) : imagesError ? (
+              <p role="alert" style={errorStyle}>Some design images could not be loaded. Please refresh and try again.</p>
+            ) : designs.length === 0 ? (
+              <p style={emptyStyle}>There are no active designs in this category yet. Choose another category.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 250px), 1fr))', gap: 16 }}>
+                {designs.map((design) => {
+                  const isSelected = selectedDesign?.id === design.id;
+                  const imageUrl = design.image_path ? signedUrlByPath.get(design.image_path) : undefined;
+                  const designCard = (
+                    <>
+                      <div style={{ position: 'relative', height: 300, background: '#f0f1f0' }}>
+                        {imageUrl ? <Image src={imageUrl} alt={design.name} fill unoptimized style={{ objectFit: 'cover' }} /> :
+                          <div style={{ display: 'grid', height: '100%', placeItems: 'center', padding: 16, color: '#666', textAlign: 'center' }}>Design image unavailable</div>}
+                        {isSelected && <span style={selectedBadgeStyle}>Selected</span>}
+                      </div>
+                      <div style={{ padding: 15 }}>
+                        <p style={{ margin: 0, color: design.reference_code ? '#176b4d' : '#777', fontSize: 14, fontWeight: 800, letterSpacing: '0.04em' }}>{design.reference_code ?? 'Reference not available'}</p>
+                        <h3 style={{ margin: '5px 0 0', fontSize: 18 }}>{design.name}</h3>
+                        {design.description && <p style={{ margin: '8px 0 0', color: '#666', lineHeight: 1.45 }}>{design.description}</p>}
+                        {!design.reference_code && <p style={{ margin: '8px 0 0', color: '#8a5a00', fontSize: 13 }}>This design cannot be selected yet.</p>}
+                      </div>
+                    </>
+                  );
+
+                  return design.reference_code ? (
+                    <Link key={design.id} href={orderHref(fabricReference, category.name, design.reference_code ?? '')}
+                      aria-current={isSelected ? 'true' : undefined}
+                      style={{ ...designCardStyle, ...(isSelected ? selectedDesignStyle : {}) }}>
+                      {designCard}
+                    </Link>
+                  ) : <article key={design.id} style={{ ...designCardStyle, cursor: 'not-allowed', opacity: 0.8 }}>{designCard}</article>;
+                })}
+              </div>
+            )}
+            {invalidDesign && <p role="alert" style={{ ...errorStyle, marginTop: 12 }}>That design is no longer available. Please choose an active design.</p>}
+          </section>
+        )}
+
+        <section style={selectedSummaryStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            {selectedDesign && selectedImageUrl && <div style={{ position: 'relative', width: 76, height: 76, flexShrink: 0, overflow: 'hidden', borderRadius: 10 }}><Image src={selectedImageUrl} alt={selectedDesign.name} fill unoptimized style={{ objectFit: 'cover' }} /></div>}
+            <div>
+              <p style={{ margin: 0, color: '#176b4d', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{selectedDesign ? 'Your selected design' : 'Design selection required'}</p>
+              {selectedDesign ? <>
+                <h2 style={{ margin: '5px 0', fontSize: 20 }}>{selectedDesign.name}</h2>
+                <p style={{ margin: 0, color: '#555' }}>{category?.name ?? ''} · <strong>{selectedDesign.reference_code}</strong></p>
+              </> : <p style={{ margin: '5px 0 0', color: '#555' }}>Choose one design above to continue.</p>}
+            </div>
           </div>
-
-          <button type="button" disabled style={{ width: '100%', marginTop: 24, padding: 14, border: 0, borderRadius: 9, background: '#b8b8b8', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'not-allowed' }}>
-            Continue
-          </button>
-          <p style={{ margin: '10px 0 0', color: '#777', fontSize: 13, textAlign: 'center' }}>Order setup is coming next. Your fabric selection is confirmed on this page.</p>
-        </div>
-      </section>
+          <form action="/order" method="get" style={{ width: '100%', maxWidth: 260 }}>
+            <input type="hidden" name="fabric" value={fabricReference} />
+            <input type="hidden" name="category" value={category?.name ?? ''} />
+            <input type="hidden" name="design" value={selectedDesign?.reference_code ?? ''} />
+            <button type="submit" disabled={!selectedDesign} style={{ ...continueButtonStyle, ...(selectedDesign ? {} : disabledButtonStyle) }}>Continue</button>
+            <p style={{ margin: '8px 0 0', color: '#666', fontSize: 12, textAlign: 'center' }}>The next order step will be added later.</p>
+          </form>
+        </section>
+      </div>
     </main>
   );
 }
 
-const pageStyle = {
-  display: 'flex',
-  minHeight: 'calc(100vh - 80px)',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '24px 16px',
-  background: '#f7f8f7',
-} as const;
+const pageStyle = { display: 'flex', minHeight: 'calc(100vh - 80px)', justifyContent: 'center', padding: '24px 16px 48px', background: '#f7f8f7' } as const;
+const messageCardStyle = { width: '100%', maxWidth: 520, padding: 24, border: '1px solid #e3e3e3', borderRadius: 16, background: '#fff', boxShadow: '0 8px 28px rgba(0, 0, 0, 0.05)' } as const;
+const fabricCardStyle = { padding: 20, border: '1px solid #dfe7e2', borderRadius: 14, background: '#fff', boxShadow: '0 4px 18px rgba(0, 0, 0, 0.04)' } as const;
+const referenceChipStyle = { display: 'inline-block', padding: '8px 10px', borderRadius: 8, background: '#f0f5f2', color: '#176b4d', fontSize: 13, fontWeight: 700 } as const;
+const categoryButtonStyle = { display: 'block', padding: '13px 12px', border: '1px solid #d8d8d8', borderRadius: 10, background: '#fff', color: '#333', textAlign: 'center' as const, textDecoration: 'none', fontWeight: 600 } as const;
+const selectedCategoryStyle = { border: '2px solid #176b4d', background: '#f1f8f3', color: '#14543e' } as const;
+const designCardStyle = { overflow: 'hidden', border: '2px solid transparent', borderRadius: 14, background: '#fff', color: 'inherit', textDecoration: 'none', boxShadow: '0 4px 18px rgba(0, 0, 0, 0.05)' } as const;
+const selectedDesignStyle = { borderColor: '#176b4d', boxShadow: '0 0 0 2px rgba(23, 107, 77, 0.12)' } as const;
+const selectedBadgeStyle = { position: 'absolute' as const, top: 12, right: 12, padding: '7px 10px', borderRadius: 20, background: '#176b4d', color: '#fff', fontSize: 13, fontWeight: 700 };
+const selectedSummaryStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' as const, gap: 16, padding: 18, border: '1px solid #cde5d6', borderRadius: 14, background: '#f4fbf6' } as const;
+const continueButtonStyle = { width: '100%', padding: 14, border: 0, borderRadius: 9, background: '#176b4d', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer' } as const;
+const disabledButtonStyle = { background: '#aaa', cursor: 'not-allowed' } as const;
+const errorStyle = { margin: 0, padding: 14, border: '1px solid #efc8c8', borderRadius: 10, background: '#fff4f4', color: '#a32121' } as const;
+const emptyStyle = { margin: 0, padding: 18, border: '1px dashed #ccc', borderRadius: 10, background: '#fff', color: '#666' } as const;
