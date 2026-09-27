@@ -15,7 +15,7 @@ export default async function EditDesignPage({ params }: Props) {
 
   const { data: category, error: categoryError } = await supabase.from('design_categories').select('id, name').eq('id', categoryId).maybeSingle();
   const { data: design, error: designError } = await supabase.from('design_items')
-    .select('id, category_id, name, description, image_path, display_order, is_active')
+    .select('id, category_id, reference_code, name, description, image_path, display_order, is_active')
     .eq('id', designId).eq('category_id', categoryId).maybeSingle();
 
   if (!category && !categoryError) notFound();
@@ -35,9 +35,9 @@ export default async function EditDesignPage({ params }: Props) {
       <h1 style={{ marginBottom: 6 }}>Edit Design</h1>
       {categoryError ? <p role="alert" style={{ color: '#a32121' }}>Could not load category: {categoryError.message}</p> : null}
       {designError ? <p role="alert" style={{ color: '#a32121' }}>Could not load design: {designError.message}</p> : null}
-      {design && !designError ? <>
+      {category && design && !categoryError && !designError ? <>
         {signedUrlError && <p role="status" style={{ color: '#8a5a00' }}>Image preview is unavailable. You can still replace the image.</p>}
-        <DesignForm categoryId={categoryId} design={design} initialSignedUrl={signedUrl} />
+        <DesignForm categoryId={categoryId} categoryName={category.name} design={design} initialSignedUrl={signedUrl} />
       </> : null}
     </main>
   );

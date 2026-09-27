@@ -23,7 +23,7 @@ export default async function AddDesignPage({ params }: Props) {
         <>
           <h1 style={{ marginBottom: 6 }}>Add Design</h1>
           <p style={{ color: '#666', marginTop: 0 }}>Category: {category.name}</p>
-          {category.is_active ? <DesignForm categoryId={categoryId} /> : <p role="alert">This category is inactive. Reactivate it before adding designs.</p>}
+          {category.is_active ? <DesignForm categoryId={categoryId} categoryName={category.name} /> : <p role="alert">This category is inactive. Reactivate it before adding designs.</p>}
         </>
       ) : null}
     </main>

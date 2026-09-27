@@ -4,9 +4,11 @@ import Image from 'next/image';
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { createDesignWithReference } from './designReferences';
 
 type Design = {
   id: string;
+  reference_code: string | null;
   name: string;
   description: string | null;
   image_path: string | null;
@@ -16,6 +18,7 @@ type Design = {
 
 type Props = {
   categoryId: string;
+  categoryName: string;
   design?: Design;
   initialSignedUrl?: string | null;
 };
@@ -37,7 +40,7 @@ function extensionFor(type: string) {
   return 'jpg';
 }
 
-export default function DesignForm({ categoryId, design, initialSignedUrl }: Props) {
+export default function DesignForm({ categoryId, categoryName, design, initialSignedUrl }: Props) {
   const supabase = createClient();
   const router = useRouter();
   const [name, setName] = useState(design?.name ?? '');
@@ -119,23 +122,23 @@ export default function DesignForm({ categoryId, design, initialSignedUrl }: Pro
           }
         }
       } else {
-        const { error: insertError } = await supabase.from('design_items').insert({
+        const referenceCode = await createDesignWithReference(supabase, {
           id: itemId,
-          category_id: categoryId,
+          categoryId,
+          categoryName,
           name: name.trim(),
           description: description.trim() || null,
-          image_path: newImagePath,
-          display_order: order,
-          is_active: true,
+          imagePath: newImagePath!,
+          displayOrder: order,
         });
-        if (insertError) throw new Error(`Could not save design: ${insertError.message}`);
+        completionMessage = `Design added successfully. Reference: ${referenceCode}`;
       }
 
       setSuccessMessage(completionMessage);
       setTimeout(() => {
         router.push(`/admin/designs/${categoryId}`);
         router.refresh();
-      }, 700);
+      }, 1400);
     } catch (error) {
       let message = error instanceof Error ? error.message : 'Something went wrong while saving the design.';
       if (newImagePath) {
@@ -155,6 +158,7 @@ export default function DesignForm({ categoryId, design, initialSignedUrl }: Pro
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 18, padding: 22, border: '1px solid #ddd', borderRadius: 14, background: '#fff' }}>
+      {design?.reference_code && <div style={{ padding: 12, borderRadius: 8, background: '#f3f6f4' }}><span style={{ color: '#666', fontSize: 13 }}>Permanent design reference</span><strong style={{ display: 'block', marginTop: 3, fontSize: 18 }}>{design.reference_code}</strong></div>}
       {initialSignedUrl && (
         <div>
           <p style={{ margin: '0 0 8px', fontWeight: 600 }}>Current design image</p>

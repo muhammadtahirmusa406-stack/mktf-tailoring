@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 
 type Props = { params: Promise<{ categoryId: string }> };
 type Category = { id: string; name: string; is_active: boolean };
-type Design = { id: string; name: string; description: string | null; image_path: string | null; display_order: number; is_active: boolean };
+type Design = { id: string; reference_code: string | null; name: string; description: string | null; image_path: string | null; display_order: number; is_active: boolean };
 
 export default async function DesignCategoryPage({ params }: Props) {
   const { categoryId } = await params;
@@ -20,7 +20,7 @@ export default async function DesignCategoryPage({ params }: Props) {
   if (!category && !categoryError) notFound();
 
   const { data: designs, error: designsError } = category
-    ? await supabase.from('design_items').select('id, name, description, image_path, display_order, is_active')
+    ? await supabase.from('design_items').select('id, reference_code, name, description, image_path, display_order, is_active')
       .eq('category_id', categoryId).order('display_order', { ascending: true }).order('created_at', { ascending: false })
     : { data: null, error: null };
 
@@ -48,7 +48,12 @@ export default async function DesignCategoryPage({ params }: Props) {
               <h1 style={{ margin: 0 }}>{(category as Category).name}</h1>
               <p style={{ color: '#666', margin: '6px 0 0' }}>{designList.length} {designList.length === 1 ? 'design' : 'designs'}</p>
             </div>
-            {(category as Category).is_active && <Link href={`/admin/designs/${categoryId}/new`} style={primaryButton}>+ Add Design</Link>}
+            {(category as Category).is_active && (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <Link href={`/admin/designs/${categoryId}/bulk`} style={primaryButton}>+ Add Designs</Link>
+                <Link href={`/admin/designs/${categoryId}/new`} style={secondaryButton}>Add one design</Link>
+              </div>
+            )}
           </header>
           {designsError && <p role="alert" style={{ color: '#a32121' }}>Could not load designs: {designsError.message}</p>}
           {imageError && <p role="alert" style={{ color: '#a32121' }}>Some design images could not be loaded: {imageError}</p>}
@@ -56,7 +61,12 @@ export default async function DesignCategoryPage({ params }: Props) {
             <section style={{ padding: 40, textAlign: 'center', border: '1px solid #ddd', borderRadius: 14, background: '#fff' }}>
               <h2>No designs in this category yet</h2>
               <p style={{ color: '#666' }}>Add a design image to get started.</p>
-              {(category as Category).is_active && <Link href={`/admin/designs/${categoryId}/new`} style={primaryButton}>Add Design</Link>}
+              {(category as Category).is_active && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <Link href={`/admin/designs/${categoryId}/bulk`} style={primaryButton}>Add Designs</Link>
+                  <Link href={`/admin/designs/${categoryId}/new`} style={secondaryButton}>Add one design</Link>
+                </div>
+              )}
             </section>
           ) : (
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 18 }}>
@@ -70,9 +80,10 @@ export default async function DesignCategoryPage({ params }: Props) {
                     </div>
                     <div style={{ padding: 16 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'start' }}>
-                        <h2 style={{ margin: 0, fontSize: 18 }}>{design.name}</h2>
+                      <h2 style={{ margin: 0, fontSize: 18 }}>{design.name}</h2>
                         <span style={{ padding: '4px 7px', borderRadius: 16, background: design.is_active ? '#eaf7ea' : '#eee', color: design.is_active ? '#176b17' : '#666', fontSize: 12 }}>{design.is_active ? 'Active' : 'Inactive'}</span>
                       </div>
+                      {design.reference_code && <p style={{ margin: '8px 0 0', color: '#176b4d', fontSize: 14, fontWeight: 700 }}>{design.reference_code}</p>}
                       {design.description && <p style={{ color: '#666', lineHeight: 1.45 }}>{design.description}</p>}
                       <Link href={`/admin/designs/${categoryId}/${design.id}/edit`} style={{ display: 'block', marginTop: 14, padding: 10, border: '1px solid #ccc', borderRadius: 8, textAlign: 'center', color: '#111', textDecoration: 'none' }}>Edit design</Link>
                     </div>
@@ -88,3 +99,4 @@ export default async function DesignCategoryPage({ params }: Props) {
 }
 
 const primaryButton = { display: 'inline-block', padding: '12px 18px', borderRadius: 9, background: '#111', color: '#fff', textDecoration: 'none', fontWeight: 600 } as const;
+const secondaryButton = { display: 'inline-block', padding: '12px 18px', border: '1px solid #ccc', borderRadius: 9, background: '#fff', color: '#111', textDecoration: 'none', fontWeight: 600 } as const;
