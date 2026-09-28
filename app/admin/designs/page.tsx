@@ -48,6 +48,7 @@ export default async function AdminDesignsPage() {
         <Link href="/dashboard">← Dashboard</Link>
         <h1 style={{ margin: '16px 0 6px' }}>Design Management</h1>
         <p style={{ margin: 0, color: '#666' }}>Choose a category to view and manage its designs.</p>
+        <Link href="/admin/designs/price-groups" style={priceGroupLinkStyle}>Price Group Management</Link>
       </div>
 
       {categoriesError ? (
@@ -74,4 +75,5 @@ export default async function AdminDesignsPage() {
 
 const pageStyle = { maxWidth: 1100, margin: '40px auto', padding: '20px' } as const;
 const categoryCardStyle = { display: 'block', padding: 20, border: '1px solid #ddd', borderRadius: 14, background: '#fff', color: 'inherit', textDecoration: 'none' } as const;
+const priceGroupLinkStyle = { display: 'inline-block', marginTop: 16, padding: '10px 14px', border: '1px solid #222', borderRadius: 8, color: '#111', fontWeight: 600, textDecoration: 'none' } as const;
 const statusStyle = (active: boolean) => ({ padding: '5px 8px', borderRadius: 20, background: active ? '#eaf7ea' : '#eee', color: active ? '#176b17' : '#666', fontSize: 12, whiteSpace: 'nowrap' as const });
