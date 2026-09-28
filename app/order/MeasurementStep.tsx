@@ -1,27 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-
-export type MeasurementField = {
-  key: string;
-  label: string;
-};
+import { useRouter } from 'next/navigation';
+import { isValidMeasurementValue, type MeasurementField } from './measurement-values';
 
 type Props = {
   measurements: MeasurementField[];
   initialValues: Record<string, string>;
 };
 
-function isValidValue(value: string) {
-  if (!/^\d+$/.test(value)) return false;
-  const number = Number(value);
-  return Number.isInteger(number) && number >= 1 && number <= 120;
-}
-
 export default function MeasurementStep({ measurements, initialValues }: Props) {
+  const router = useRouter();
   const [values, setValues] = useState(initialValues);
-  const [continued, setContinued] = useState(false);
-  const complete = measurements.length > 0 && measurements.every((item) => isValidValue(values[item.key] ?? ''));
+  const [isContinuing, setIsContinuing] = useState(false);
+  const complete = measurements.length > 0 && measurements.every((item) => isValidMeasurementValue(values[item.key] ?? ''));
 
   function continueToNextStep() {
     if (!complete) return;
@@ -31,8 +23,9 @@ export default function MeasurementStep({ measurements, initialValues }: Props) 
     );
     const url = new URL(window.location.href);
     url.searchParams.set('measurements', JSON.stringify(storedValues));
-    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-    setContinued(true);
+    url.searchParams.set('step', 'review');
+    setIsContinuing(true);
+    router.push(`${url.pathname}${url.search}${url.hash}`);
   }
 
   return (
@@ -53,7 +46,7 @@ export default function MeasurementStep({ measurements, initialValues }: Props) 
                 <select
                   value={values[measurement.key] ?? ''}
                   onChange={(event) => {
-                    setContinued(false);
+                    setIsContinuing(false);
                     setValues((current) => ({ ...current, [measurement.key]: event.target.value }));
                   }}
                   style={selectStyle}
@@ -70,11 +63,10 @@ export default function MeasurementStep({ measurements, initialValues }: Props) 
         </div>
       )}
 
-      <button type="button" onClick={continueToNextStep} disabled={!complete} style={{ ...continueButtonStyle, ...(complete ? {} : disabledButtonStyle) }}>
-        Continue
+      <button type="button" onClick={continueToNextStep} disabled={!complete || isContinuing} style={{ ...continueButtonStyle, ...(complete && !isContinuing ? {} : disabledButtonStyle) }}>
+        {isContinuing ? 'Opening review…' : 'Review order'}
       </button>
 
-      {continued && <p role="status" style={successStyle}>Measurements saved for the next step. No order has been submitted.</p>}
       {!complete && measurements.length > 0 && <p style={{ margin: '10px 0 0', color: '#666', fontSize: 13 }}>Select a value for every measurement to continue.</p>}
     </section>
   );
@@ -85,4 +77,3 @@ const arrowStyle = { position: 'absolute' as const, right: 14, top: '50%', trans
 const continueButtonStyle = { width: '100%', marginTop: 22, padding: 14, border: 0, borderRadius: 9, background: '#176b4d', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer' } as const;
 const disabledButtonStyle = { background: '#aaa', cursor: 'not-allowed' } as const;
 const errorStyle = { margin: 0, padding: 14, border: '1px solid #efc8c8', borderRadius: 10, background: '#fff4f4', color: '#a32121' } as const;
-const successStyle = { margin: '12px 0 0', padding: 12, borderRadius: 8, background: '#f4fbf6', color: '#245b3e', fontSize: 14 } as const;

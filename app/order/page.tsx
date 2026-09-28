@@ -1,7 +1,9 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import MeasurementStep, { type MeasurementField } from './MeasurementStep';
+import MeasurementStep from './MeasurementStep';
+import ReviewOrder from './ReviewOrder';
+import { isValidMeasurementValue, parseMeasurementValues, type MeasurementField } from './measurement-values';
 
 type SearchParams = {
   fabric?: string | string[];
@@ -50,11 +52,13 @@ function MessageCard({
   );
 }
 
-function orderHref(fabric: string, category?: string, design?: string, style?: string) {
+function orderHref(fabric: string, category?: string, design?: string, style?: string, step?: string, measurements?: string) {
   const params = new URLSearchParams({ fabric });
   if (category) params.set('category', category);
   if (design) params.set('design', design);
   if (style) params.set('style', style);
+  if (step) params.set('step', step);
+  if (measurements) params.set('measurements', measurements);
   return `/order?${params.toString()}`;
 }
 
@@ -65,6 +69,7 @@ export default async function OrderEntryPage({ searchParams }: Props) {
   const requestedDesign = typeof params.design === 'string' ? params.design : '';
   const requestedStyle = typeof params.style === 'string' ? params.style : '';
   const hasStyleParameter = params.style !== undefined;
+  const isReviewStep = params.step === 'review';
 
   if (!fabricReference) {
     return (
@@ -119,14 +124,33 @@ export default async function OrderEntryPage({ searchParams }: Props) {
   let designs: Design[] = [];
   let designsError = '';
   if (category) {
-    const result = await supabase
+    const designQuery = supabase
       .from('design_items')
       .select('id, reference_code, category_id, name, description, image_path, display_order')
       .eq('category_id', category.id)
-      .eq('is_active', true)
-      .order('display_order', { ascending: true });
-    if (result.error) designsError = result.error.message;
-    designs = (result.data ?? []) as Design[];
+      .eq('is_active', true);
+
+    if (requestedDesign) {
+      const selectedResult = await designQuery.eq('reference_code', requestedDesign).maybeSingle();
+      if (selectedResult.error) {
+        designsError = selectedResult.error.message;
+      } else if (selectedResult.data) {
+        designs = [selectedResult.data as Design];
+      } else {
+        const alternatives = await supabase
+          .from('design_items')
+          .select('id, reference_code, category_id, name, description, image_path, display_order')
+          .eq('category_id', category.id)
+          .eq('is_active', true)
+          .order('display_order', { ascending: true });
+        if (alternatives.error) designsError = alternatives.error.message;
+        designs = (alternatives.data ?? []) as Design[];
+      }
+    } else {
+      const result = await designQuery.order('display_order', { ascending: true });
+      if (result.error) designsError = result.error.message;
+      designs = (result.data ?? []) as Design[];
+    }
   }
 
   const selectedDesign = category && requestedDesign
@@ -135,7 +159,7 @@ export default async function OrderEntryPage({ searchParams }: Props) {
   const invalidDesign = Boolean(category && requestedDesign && !selectedDesign && !designsError);
   const selectedStyle = selectedDesign ? sewingStyles.find((style) => style.value === requestedStyle) ?? null : null;
   const invalidStyle = Boolean(selectedDesign && hasStyleParameter && !selectedStyle);
-  const readyForMeasurements = typeof params.step === 'string' && params.step === 'measurements' && Boolean(selectedStyle);
+  const readyForMeasurements = (params.step === 'measurements' || isReviewStep) && Boolean(selectedStyle);
 
   let measurements: MeasurementField[] = [];
   let measurementError = '';
@@ -143,11 +167,11 @@ export default async function OrderEntryPage({ searchParams }: Props) {
   if (readyForMeasurements && selectedStyle) {
     const { data: styleRecord, error: styleError } = await supabase
       .from('sewing_styles')
-      .select('id')
+      .select('id, is_active')
       .eq('name', selectedStyle.label)
       .maybeSingle();
 
-    if (styleError || !styleRecord) {
+    if (styleError || !styleRecord || !styleRecord.is_active) {
       measurementError = 'We couldn’t load the measurements for this sewing style. Please try again.';
     } else {
       const { data: linkedMeasurements, error: linkedMeasurementsError } = await supabase
@@ -184,28 +208,18 @@ export default async function OrderEntryPage({ searchParams }: Props) {
           measurementError = 'Measurements are not available for this sewing style right now. Please try again later.';
         } else {
           measurements = fields;
-          if (typeof params.measurements === 'string') {
-            try {
-              const parsed: unknown = JSON.parse(params.measurements);
-              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                const stored = parsed as Record<string, unknown>;
-                initialMeasurementValues = Object.fromEntries(fields.flatMap((field) => {
-                  const value = stored[field.key];
-                  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 120
-                    ? [[field.key, String(value)]]
-                    : [];
-                }));
-              }
-            } catch {
-              initialMeasurementValues = {};
-            }
-          }
+          initialMeasurementValues = parseMeasurementValues(
+            typeof params.measurements === 'string' ? params.measurements : undefined,
+            fields
+          );
         }
       }
     }
   }
 
-  const paths = designs.map((design) => design.image_path).filter((path): path is string => Boolean(path));
+  const paths = selectedDesign
+    ? selectedDesign.image_path ? [selectedDesign.image_path] : []
+    : designs.map((design) => design.image_path).filter((path): path is string => Boolean(path));
   const signedUrlByPath = new Map<string, string>();
   let imagesError = '';
   if (paths.length) {
@@ -217,6 +231,8 @@ export default async function OrderEntryPage({ searchParams }: Props) {
   }
 
   const selectedImageUrl = selectedDesign?.image_path ? signedUrlByPath.get(selectedDesign.image_path) ?? null : null;
+  const measurementValuesComplete = measurements.length === selectedStyle?.measurementCount &&
+    measurements.every((measurement) => isValidMeasurementValue(initialMeasurementValues[measurement.key]));
 
   return (
     <main style={pageStyle}>
@@ -231,6 +247,48 @@ export default async function OrderEntryPage({ searchParams }: Props) {
           </div>
         </section>
 
+        {isReviewStep ? (
+          measurementError || !readyForMeasurements ? (
+            <div>
+              <p role="alert" style={errorStyle}>{measurementError || 'Your selections are incomplete or unavailable. Please return to the previous step.'}</p>
+              <Link href={orderHref(
+                fabricReference,
+                category?.name ?? requestedCategory,
+                selectedDesign?.reference_code ?? requestedDesign,
+                selectedStyle?.value ?? requestedStyle,
+                'measurements',
+                typeof params.measurements === 'string' ? params.measurements : undefined
+              )} style={{ display: 'inline-block', marginTop: 12, color: '#176b4d', fontWeight: 700 }}>Return to measurements</Link>
+            </div>
+          ) : !selectedDesign || !category || !selectedStyle || !measurementValuesComplete ? (
+            <div>
+              <p role="alert" style={errorStyle}>Some required selections or measurement values are missing or invalid. Please go back and complete the measurements.</p>
+              <Link href={orderHref(
+                fabricReference,
+                category?.name ?? requestedCategory,
+                selectedDesign?.reference_code ?? requestedDesign,
+                selectedStyle?.value ?? requestedStyle,
+                'measurements',
+                typeof params.measurements === 'string' ? params.measurements : undefined
+              )} style={{ display: 'inline-block', marginTop: 12, color: '#176b4d', fontWeight: 700 }}>Return to measurements</Link>
+            </div>
+          ) : (
+            <ReviewOrder
+              fabric={{ name: product.name, type: product.type, price: Number(product.price), reference: option.reference_code }}
+              design={{ category: category.name, name: selectedDesign.name, reference: selectedDesign.reference_code ?? '', imageUrl: selectedImageUrl }}
+              sewingStyle={{ label: selectedStyle.label, value: selectedStyle.value }}
+              measurements={measurements.map((measurement) => ({ label: measurement.label, value: Number(initialMeasurementValues[measurement.key]) }))}
+              editMeasurementsHref={orderHref(
+                fabricReference,
+                category.name,
+                selectedDesign.reference_code ?? '',
+                selectedStyle.value,
+                'measurements',
+                JSON.stringify(Object.fromEntries(measurements.map((measurement) => [measurement.key, Number(initialMeasurementValues[measurement.key])])))
+              )}
+            />
+          )
+        ) : <>
         <section>
           <h2 style={{ margin: '8px 0 5px', fontSize: 23 }}>Choose a design category</h2>
           <p style={{ margin: '0 0 14px', color: '#666' }}>Your fabric selection will stay with you as you choose a design.</p>
@@ -257,9 +315,10 @@ export default async function OrderEntryPage({ searchParams }: Props) {
         {category && (
           <section>
             <div style={{ marginBottom: 14 }}>
-              <h2 style={{ margin: '4px 0', fontSize: 23 }}>{category.name} designs</h2>
-              <p style={{ margin: 0, color: '#666' }}>Choose one design. Each card shows its permanent reference.</p>
+              <h2 style={{ margin: '4px 0', fontSize: 23 }}>{selectedDesign ? `${category.name} design selected` : `${category.name} designs`}</h2>
+              <p style={{ margin: 0, color: '#666' }}>{selectedDesign ? 'Your exact design reference is selected below.' : 'Choose one design. Each card shows its permanent reference.'}</p>
             </div>
+            {selectedDesign && <Link href={orderHref(fabricReference, category.name)} style={{ display: 'inline-block', marginBottom: 14, color: '#176b4d', fontWeight: 700 }}>Choose a different design</Link>}
             {designsError ? (
               <p role="alert" style={errorStyle}>Could not load designs for this category. Please try again.</p>
             ) : imagesError ? (
@@ -349,6 +408,7 @@ export default async function OrderEntryPage({ searchParams }: Props) {
         {readyForMeasurements && (measurementError
           ? <p role="alert" style={errorStyle}>{measurementError}</p>
           : <MeasurementStep measurements={measurements} initialValues={initialMeasurementValues} />)}
+        </>}
       </div>
     </main>
   );
