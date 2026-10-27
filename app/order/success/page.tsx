@@ -36,7 +36,7 @@ export default async function OrderSuccessPage({ searchParams }: Props) {
         <p style={{ margin: 0, color: '#176b4d', fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
           Order Confirmed
         </p>
-        <h1 style={{ margin: '8px 0 12px', fontSize: 24, color: '#1f2937', fontWeight: 800 }}>
+        <h1 style={{ margin: '8px 0 12px', fontSize: 24, color: '#111827', fontWeight: 800 }}>
           Thank you{orderData?.customer_name ? ', ' + orderData.customer_name : ''}!
         </h1>
         <p style={{ margin: '0 0 20px', color: '#4b5563', lineHeight: 1.5, fontSize: 14 }}>
@@ -71,10 +71,38 @@ export default async function OrderSuccessPage({ searchParams }: Props) {
           </div>
         )}
         <div style={{ marginTop: 24, display: 'grid', gap: 10 }}>
-          <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>
-            Keep your order reference safe. You can track your order status anytime.
-          </p>
-          <Link href="/" style={{ display: 'block', width: '100%', padding: '13px', background: '#176b4d', color: '#fff', textDecoration: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15 }}>
+          {orderRef && (
+            <Link
+              href={`/track?ref=${encodeURIComponent(orderRef)}`}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '13px',
+                background: '#176b4d',
+                color: '#fff',
+                textDecoration: 'none',
+                borderRadius: 10,
+                fontWeight: 700,
+                fontSize: 15,
+              }}
+            >
+              Track This Order Live →
+            </Link>
+          )}
+          <Link
+            href="/"
+            style={{
+              display: 'block',
+              width: '100%',
+              padding: '12px',
+              background: '#f3f4f6',
+              color: '#374151',
+              textDecoration: 'none',
+              borderRadius: 10,
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
             Return Home
           </Link>
         </div>
