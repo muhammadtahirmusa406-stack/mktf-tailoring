@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -54,9 +55,6 @@ export default function PriceGroupManager({ categories, styles, initialLoadError
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState(initialLoadError);
   const [feedback, setFeedback] = useState('');
-  const [newPrice, setNewPrice] = useState('');
-  const [newOrder, setNewOrder] = useState('0');
-  const [newActive, setNewActive] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState('');
   const [editOrder, setEditOrder] = useState('');
@@ -118,38 +116,6 @@ export default function PriceGroupManager({ categories, styles, initialLoadError
     return () => { current = false; };
   }, [categoryId, styleId, supabase]);
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setErrorMessage('');
-    setFeedback('');
-    if (!categoryId) return setErrorMessage('Select a design category first.');
-    if (!styleId) return setErrorMessage('Select a sewing style first.');
-    if (!validPrice(newPrice)) return setErrorMessage('Enter a valid non-negative price.');
-    if (!validOrder(newOrder)) return setErrorMessage('Display order must be a non-negative whole number.');
-    setSaving(true);
-    try {
-      await verifyAdmin(supabase);
-      const { data, error } = await supabase.from('design_price_groups').insert({
-        category_id: categoryId,
-        sewing_style_id: styleId,
-        price: Number(newPrice),
-        display_order: Number(newOrder),
-        is_active: newActive,
-      }).select(groupFields).single();
-      if (error) throw error;
-      setGroups((current) => [...current, data as PriceGroup].sort((a, b) => a.display_order - b.display_order));
-      setPictureCounts((current) => ({ ...current, [(data as PriceGroup).id]: 0 }));
-      setNewPrice('');
-      setNewOrder('0');
-      setNewActive(true);
-      setFeedback('Price group created.');
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not create the price group.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
   function beginEdit(group: PriceGroup) {
     setEditingId(group.id);
     setEditPrice(String(group.price));
@@ -203,24 +169,11 @@ export default function PriceGroupManager({ categories, styles, initialLoadError
 
       {errorMessage && <p role="alert" style={alertStyle}>{errorMessage}</p>}
       {feedback && <p role="status" style={successStyle}>{feedback}</p>}
+      {categoryId && <p style={mutedStyle}>New groups are created with their pictures and cover from the category page: <Link href={`/admin/designs/${categoryId}`}>Open category</Link>.</p>}
       {!categoryId && <p style={mutedStyle}>Select a design category to manage its price groups.</p>}
       {categoryId && !styleId && <p style={mutedStyle}>Select a sewing style to view or create price groups.</p>}
 
       {categoryId && styleId && <>
-        <section style={panelStyle}>
-          <h2 style={{ marginTop: 0 }}>Create price group</h2>
-          <form onSubmit={handleCreate} style={formGridStyle}>
-            <label style={labelStyle}>Price (₦)
-              <input inputMode="decimal" value={newPrice} onChange={(event) => setNewPrice(event.target.value)} style={fieldStyle} placeholder="e.g. 8000" />
-            </label>
-            <label style={labelStyle}>Display order
-              <input inputMode="numeric" value={newOrder} onChange={(event) => setNewOrder(event.target.value)} style={fieldStyle} />
-            </label>
-            <label style={checkboxStyle}><input type="checkbox" checked={newActive} onChange={(event) => setNewActive(event.target.checked)} /> Active</label>
-            <button type="submit" style={buttonStyle} disabled={saving}>{saving ? 'Creating…' : 'Create price group'}</button>
-          </form>
-        </section>
-
         <section style={{ marginTop: 28 }}>
           <h2>Price groups</h2>
           {loading ? <p aria-live="polite">Loading price groups…</p> : groups.length === 0 ? (
@@ -265,11 +218,9 @@ export default function PriceGroupManager({ categories, styles, initialLoadError
 }
 
 const selectionStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, padding: 18, border: '1px solid #ddd', borderRadius: 12, background: '#fff' } as const;
-const panelStyle = { marginTop: 24, padding: 18, border: '1px solid #ddd', borderRadius: 12, background: '#fff' } as const;
 const labelStyle = { display: 'grid', gap: 7, fontWeight: 600 } as const;
-const formGridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, alignItems: 'end' } as const;
-const editGridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, alignItems: 'end' } as const;
 const checkboxStyle = { display: 'flex', alignItems: 'center', gap: 8, minHeight: 42 } as const;
+const editGridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, alignItems: 'end' } as const;
 const groupListStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14 } as const;
 const cardStyle = { padding: 18, border: '1px solid #ddd', borderRadius: 12, background: '#fff' } as const;
 const secondaryButtonStyle = { padding: '9px 12px', border: '1px solid #bbb', borderRadius: 8, background: '#fff', color: '#111', fontWeight: 600, cursor: 'pointer' } as const;
