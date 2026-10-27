@@ -294,7 +294,8 @@ export default async function OrderEntryPage({ searchParams }: Props) {
             <ReviewOrder
               fabric={{ name: product.name, type: product.type, price: Number(product.price), reference: option.reference_code }}
               design={{ category: selectedCategory.name, name: selectedDesignItem.name, reference: selectedDesignItem.reference_code ?? '', price: Number(selectedPriceGroup.price), imageUrl: selectedImageUrl }}
-              sewingStyle={{ label: selectedStyleConfig.label, value: selectedStyleConfig.value, charge: Number(selectedStyleRecord.sewing_charge ?? 0) }}
+              sewingStyle={{ id: selectedStyleRecord.id, label: selectedStyleConfig.label, value: selectedStyleConfig.value, charge: Number(selectedStyleRecord.sewing_charge ?? 0) }}
+              measurementsJson={JSON.stringify(Object.fromEntries(measurements.map((m) => [m.key, Number(initialMeasurementValues[m.key])])))}
               measurements={measurements.map((m) => ({ label: m.label, value: Number(initialMeasurementValues[m.key]) }))}
               editMeasurementsHref={orderHref({
                 fabric: fabricReference,
