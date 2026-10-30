@@ -122,3 +122,87 @@ export async function addDesignBatchAction(formData: FormData) {
 }
 
 export const uploadSewingStyleAction = addSewingStyleAction;
+// 2. Delete Sewing Style
+export async function deleteSewingStyleAction(idOrFormData: string | FormData): Promise<{ success: boolean; error?: string }> {
+  try {
+    let id = '';
+    if (typeof idOrFormData === 'string') {
+      id = idOrFormData;
+    } else if (idOrFormData && typeof idOrFormData === 'object' && 'get' in idOrFormData) {
+      id = (idOrFormData.get('styleId') as string) || (idOrFormData.get('id') as string) || '';
+    }
+
+    if (!id) {
+      return { success: false, error: 'Style ID is required.' };
+    }
+
+    const supabase = await createClient();
+    const { error } = await supabase.from('sewing_styles').delete().eq('id', id);
+    if (error) throw error;
+
+    revalidatePath('/admin/catalog');
+    return { success: true };
+  } catch (err: any) {
+    console.error('Delete sewing style error:', err);
+    return { success: false, error: err.message || 'Failed to delete sewing style' };
+  }
+}
+
+// 3. Bulk Upload Files Action for Design Catalog
+export async function bulkUploadFilesAction(formData: FormData) {
+  try {
+    const supabase = await createClient();
+    const files = formData.getAll('files') as File[];
+    const category = (formData.get('category') as string) || 'EMBROIDERY';
+
+    if (!files || files.length === 0) {
+      return { success: false, error: 'No files provided for upload.' };
+    }
+
+    const uploaded = [];
+    for (const file of files) {
+      if (file.size === 0) continue;
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const baseName = file.name.replace(/\.[^/.]+$/, '');
+      const path = `bulk/${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('catalog')
+        .upload(path, file, { upsert: true });
+
+      if (uploadErr) {
+        console.error('File upload error:', uploadErr);
+        continue;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('catalog')
+        .getPublicUrl(uploadData.path);
+
+      if (category === 'STYLE') {
+        const { error: insErr } = await supabase.from('sewing_styles').insert({
+          name: baseName,
+          image_url: publicUrl,
+          sewing_charge: 15000,
+          is_active: true,
+        });
+        if (!insErr) uploaded.push(publicUrl);
+      } else {
+        const { error: insErr } = await supabase.from('embroidery_designs').insert({
+          name: baseName,
+          image_url: publicUrl,
+          price: 25000,
+          code: baseName.toUpperCase().replace(/\s+/g, '-'),
+          is_active: true,
+        });
+        if (!insErr) uploaded.push(publicUrl);
+      }
+    }
+
+    revalidatePath('/admin/catalog');
+    return { success: true, count: uploaded.length };
+  } catch (err: any) {
+    console.error('Bulk upload error:', err);
+    return { success: false, error: err.message };
+  }
+}

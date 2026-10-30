@@ -1,9 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function TrackOrderPageClient({ order, rawQuery, searched }: any) {
   const [copied, setCopied] = useState(false);
+  const [trackingUrl, setTrackingUrl] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && order?.order_reference) {
+      setTrackingUrl(`${window.location.origin}/track?query=${order.order_reference}`);
+    }
+  }, [order?.order_reference]);
 
   const steps = [
     { key: 'CONFIRMED', label: 'Order Confirmed', icon: '📝' },
@@ -202,6 +210,14 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
                   Customer: <strong style={{ color: '#0f172a' }}>{order.customer_name}</strong>
                 </div>
               </div>
+
+              {/* Scannable Order QR Code */}
+              {trackingUrl && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '10px 14px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                  <QRCodeSVG value={trackingUrl} size={84} level="M" />
+                  <span style={{ fontSize: '0.68rem', fontFamily: 'monospace', fontWeight: 700, color: '#64748b', marginTop: '6px', letterSpacing: '0.04em' }}>SCAN TO TRACK</span>
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <span
@@ -449,7 +465,7 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
                   </div>
 
                   <a
-                    href={`https://wa.me/2348033459095?text=${p2pWhatsAppMessage}`}
+                    href={`https://wa.me/2348030635560?text=${p2pWhatsAppMessage}`}
                     target="_blank"
                     rel="noreferrer"
                     style={{
@@ -585,7 +601,7 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
                 Need adjustments or customer support?{' '}
               </span>
               <a
-                href={`https://wa.me/2348033459095?text=Hello%20Master%20HQ,%20I%20am%20inquiring%20about%20my%20order%20%23${order.order_reference}`}
+                href={`https://wa.me/2348030635560?text=Hello%20Master%20HQ,%20I%20am%20inquiring%20about%20my%20order%20%23${order.order_reference}`}
                 target="_blank"
                 rel="noreferrer"
                 style={{

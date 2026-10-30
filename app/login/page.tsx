@@ -1,10 +1,10 @@
-﻿'use client';
+'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextUrl = searchParams.get('next') || '/partner/apply';
@@ -319,5 +319,14 @@ export default function LoginPage() {
         )}
       </main>
     </div>
+  );
+}
+
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

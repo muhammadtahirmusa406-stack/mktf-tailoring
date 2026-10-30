@@ -31,8 +31,8 @@ export default async function AdminShopsPage() {
     `)
     .order('created_at', { ascending: false });
 
-  const pendingApplications = allShops.filter((s: any) => s.status === 'pending');
-  const activeAndInactiveShops = allShops.filter((s: any) => s.status !== 'pending');
+  const pendingApplications = (allShops || []).filter((s: any) => s.status === 'pending');
+  const activeAndInactiveShops = (allShops || []).filter((s: any) => s.status !== 'pending');
 
   const getCapacityBadge = (tier: string) => {
     switch ((tier || '').toLowerCase()) {

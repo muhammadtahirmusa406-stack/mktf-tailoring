@@ -220,14 +220,14 @@ export default async function ChildShopDashboardPage({
 
           <div style={{ textAlign: 'right', background: '#f8fafc', padding: '12px 20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
             <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0f172a' }}>
-              {assignedOrders.length}
+              {(assignedOrders || []).length}
             </div>
             <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Active Jobs</div>
           </div>
         </header>
 
         {/* Orders Queue on Floor */}
-        {assignedOrders.length === 0 ? (
+        {(assignedOrders || []).length === 0 ? (
           <div style={{ textAlign: 'center', padding: '64px 0', background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>✂️</div>
             <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontWeight: 700 }}>No production jobs on this floor</h3>
@@ -237,7 +237,7 @@ export default async function ChildShopDashboardPage({
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {assignedOrders.map((job: any) => {
+            {(assignedOrders || []).map((job: any) => {
               const isReady = job.status === 'READY';
               const inProd = job.status === 'IN PRODUCTION';
 

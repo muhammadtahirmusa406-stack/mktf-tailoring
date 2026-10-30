@@ -325,7 +325,7 @@ export default async function AdminCatalogPage() {
       )}
 
       {/* Embroidery Designs Gallery */}
-      <AdminGalleryClient initialDesigns={designs} />
+      <AdminGalleryClient initialDesigns={designs || []} initialStyles={styles || []} />
 
     </div>
   );
