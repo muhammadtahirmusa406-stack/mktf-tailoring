@@ -1,42 +1,48 @@
-﻿'use server';
+'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
 
-export async function updateOrderStatusAction(formData: FormData): Promise<void> {
-  const orderRef = (formData.get('orderRef') as string || '').trim();
-  const newStatus = (formData.get('status') as string || '').trim();
-
-  if (!orderRef || !newStatus) return;
-
+export async function updateOrderStatusAction(orderId: string, newStatus: string) {
   const supabase = await createClient();
-  await supabase
+
+  const { error } = await supabase
     .from('orders')
-    .update({ status: newStatus, updated_at: new Date().toISOString() })
-    .eq('order_reference', orderRef);
+    .update({ 
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', orderId);
+
+  if (error) {
+    console.error('Failed to update status:', error.message);
+    return { success: false, error: error.message };
+  }
 
   revalidatePath('/admin/orders');
   revalidatePath('/track');
-  redirect(`/admin/orders?status=${encodeURIComponent(newStatus)}`);
+  return { success: true };
 }
 
-export async function bulkUpdateOrderStatusAction(formData: FormData): Promise<void> {
-  const rawRefs = (formData.get('orderRefs') as string || '').trim();
-  const newStatus = (formData.get('status') as string || '').trim();
-
-  if (!rawRefs || !newStatus) return;
-
-  const orderRefs = rawRefs.split(',').map((r) => r.trim()).filter(Boolean);
-  if (orderRefs.length === 0) return;
-
+export async function confirmFinalPaymentAction(orderId: string, totalPrice: number) {
   const supabase = await createClient();
-  await supabase
+
+  const { error } = await supabase
     .from('orders')
-    .update({ status: newStatus, updated_at: new Date().toISOString() })
-    .in('order_reference', orderRefs);
+    .update({
+      amount_paid: totalPrice,
+      payment_status: '100%_FULLY_PAID',
+      status: 'COMPLETED',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', orderId);
+
+  if (error) {
+    console.error('Failed to confirm balance payment:', error.message);
+    return { success: false, error: error.message };
+  }
 
   revalidatePath('/admin/orders');
   revalidatePath('/track');
-  redirect(`/admin/orders?status=${encodeURIComponent(newStatus)}`);
+  return { success: true };
 }

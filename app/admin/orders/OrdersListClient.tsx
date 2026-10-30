@@ -2,7 +2,18 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { updateOrderStatusAction, bulkUpdateOrderStatusAction } from './actions';
+import {
+  updateOrderStatusAction,
+  bulkUpdateOrderStatusAction,
+  assignOrderToShopAction,
+} from './actions';
+
+type ChildShop = {
+  id: string;
+  name: string;
+  location: string | null;
+  phone: string | null;
+};
 
 type OrderItem = {
   id: string;
@@ -10,6 +21,7 @@ type OrderItem = {
   customer_name: string | null;
   customer_phone: string | null;
   status: string;
+  child_shop_id?: string | null;
   fabric_name_at_order: string | null;
   fabric_reference_at_order: string | null;
   design_reference_at_order: string | null;
@@ -19,17 +31,23 @@ type OrderItem = {
   created_at: string;
 };
 
-const NEXT_STAGE: Record<string, { label: string; nextStatus: string }> = {
+const NEXT_STAGE: Record<string, { label: string; nextStatus: string; isGreen?: boolean }> = {
   'NEW': { label: 'Start Production →', nextStatus: 'IN PRODUCTION' },
   'CONFIRMED': { label: 'Start Production →', nextStatus: 'IN PRODUCTION' },
   'ASSIGNED': { label: 'Start Production →', nextStatus: 'IN PRODUCTION' },
-  'IN PRODUCTION': { label: 'Mark Ready for Pickup ✓', nextStatus: 'READY' },
-  'READY': { label: 'Mark Delivered 📦', nextStatus: 'DELIVERED' },
+  'IN PRODUCTION': { label: '✓ Mark Ready for Pickup', nextStatus: 'READY', isGreen: true },
+  'READY': { label: '📦 Mark Delivered', nextStatus: 'DELIVERED', isGreen: true },
 };
 
 const ALL_STATUSES = ['NEW', 'CONFIRMED', 'ASSIGNED', 'IN PRODUCTION', 'READY', 'DELIVERED'];
 
-export default function OrdersListClient({ orders }: { orders: OrderItem[] }) {
+export default function OrdersListClient({
+  orders,
+  childShops,
+}: {
+  orders: OrderItem[];
+  childShops: ChildShop[];
+}) {
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
 
   const toggleSelect = (ref: string) => {
@@ -46,209 +64,285 @@ export default function OrdersListClient({ orders }: { orders: OrderItem[] }) {
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    const s = (status || '').toUpperCase();
+    if (s === 'READY' || s === 'DELIVERED') {
+      return { bg: '#dcfce7', text: '#14532d', border: '#86efac' };
+    }
+    if (s === 'IN PRODUCTION') {
+      return { bg: '#fef3c7', text: '#92400e', border: '#fde047' };
+    }
+    if (s === 'ASSIGNED') {
+      return { bg: '#ede9fe', text: '#5b21b6', border: '#c4b5fd' };
+    }
+    if (s === 'CANCELLED') {
+      return { bg: '#fee2e2', text: '#7f1d1d', border: '#fca5a5' };
+    }
+    return { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1' };
+  };
+
   return (
     <div>
-      {/* Bulk Action Toolbar */}
-      {orders.length > 0 && (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 12,
-          padding: '12px 18px',
-          background: selectedRefs.length > 0 ? '#eef7f2' : '#fff',
-          border: selectedRefs.length > 0 ? '1px solid #176b4d' : '1px solid #e5e7eb',
-          borderRadius: 12,
-          marginBottom: 16,
-          transition: 'all 0.2s ease',
-        }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-            <input
-              type="checkbox"
-              checked={selectedRefs.length > 0 && selectedRefs.length === orders.length}
-              onChange={toggleSelectAll}
-              style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#176b4d' }}
-            />
-            <span>Select All Visible ({selectedRefs.length} selected)</span>
-          </label>
-
-          {selectedRefs.length > 0 && (
-            <form action={bulkUpdateOrderStatusAction} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input type="hidden" name="orderRefs" value={selectedRefs.join(',')} />
-              <select
-                name="status"
-                defaultValue="IN PRODUCTION"
-                style={{
-                  padding: '7px 12px',
-                  borderRadius: 8,
-                  border: '1px solid #176b4d',
-                  background: '#fff',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                {ALL_STATUSES.map((st) => (
-                  <option key={st} value={st}>Move to: {st}</option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                style={{
-                  padding: '7px 16px',
-                  background: '#176b4d',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Apply to Selected ({selectedRefs.length})
-              </button>
-            </form>
-          )}
+      {selectedRefs.length > 0 && (
+        <div
+          style={{
+            background: '#0f172a',
+            color: '#fff',
+            padding: '12px 20px',
+            borderRadius: '10px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
+          }}
+        >
+          <span>
+            <strong>{selectedRefs.length}</strong> order(s) selected
+          </span>
+          <form action={bulkUpdateOrderStatusAction} style={{ display: 'flex', gap: '10px' }}>
+            <input type="hidden" name="orderRefs" value={selectedRefs.join(',')} />
+            <select
+              name="status"
+              defaultValue="IN PRODUCTION"
+              style={{
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+              }}
+            >
+              {ALL_STATUSES.map((st) => (
+                <option key={st} value={st}>
+                  {st}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              style={{
+                background: '#6366f1',
+                color: '#fff',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+              }}
+            >
+              Update Status
+            </button>
+          </form>
         </div>
       )}
 
-      {/* Orders Grid/List */}
-      <div style={{ display: 'grid', gap: 14 }}>
-        {orders.map((ord) => {
-          const isSelected = selectedRefs.includes(ord.order_reference);
-          const nextAction = NEXT_STAGE[ord.status.toUpperCase()];
-          const measurementsObj = (ord.measurements && typeof ord.measurements === 'object') ? ord.measurements : {};
-          const measurementEntries = Object.entries(measurementsObj);
+      {orders.length === 0 ? (
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '48px 0',
+            color: '#64748b',
+            background: '#ffffff',
+            borderRadius: '12px',
+            border: '1px solid #e2e8f0',
+          }}
+        >
+          No orders match this status filter.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '4px' }}>
+            <input
+              type="checkbox"
+              id="selectAll"
+              checked={selectedRefs.length === orders.length && orders.length > 0}
+              onChange={toggleSelectAll}
+              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+            />
+            <label htmlFor="selectAll" style={{ fontSize: '0.85rem', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>
+              Select All Orders ({orders.length})
+            </label>
+          </div>
 
-          return (
-            <div
-              key={ord.id}
-              style={{
-                background: '#fff',
-                border: isSelected ? '2px solid #176b4d' : '1px solid #e5e7eb',
-                borderRadius: 14,
-                padding: '16px 20px',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
-              }}
-            >
-              {/* Header Row */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid #f3f4f6', paddingBottom: 12, marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleSelect(ord.order_reference)}
-                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#176b4d' }}
-                  />
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <strong style={{ fontSize: 17, color: '#111827', letterSpacing: '0.04em' }}>
-                        {ord.order_reference}
-                      </strong>
-                      <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700, background: '#e4f5ec', color: '#176b4d' }}>
-                        {ord.status}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: 13, color: '#6b7280' }}>
-                      {ord.customer_name || 'Guest'} · {ord.customer_phone || 'No phone'}
+          {orders.map((o) => {
+            const assignedShop = childShops.find((s) => s.id === o.child_shop_id);
+            const isSelected = selectedRefs.includes(o.order_reference);
+            const badge = getStatusBadge(o.status);
+            const nextAction = NEXT_STAGE[o.status];
+
+            return (
+              <div
+                key={o.id}
+                style={{
+                  border: isSelected ? '2px solid #6366f1' : '1px solid #e2e8f0',
+                  background: '#ffffff',
+                  borderRadius: '12px',
+                  padding: '20px 24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                }}
+              >
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelect(o.order_reference)}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <strong style={{ fontSize: '1.15rem', color: '#0f172a' }}>{o.order_reference}</strong>
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        padding: '4px 10px',
+                        borderRadius: '9999px',
+                        background: badge.bg,
+                        color: badge.text,
+                        border: `1px solid ${badge.border}`,
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      ● {o.status}
                     </span>
+                  </div>
+
+                  <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>
+                    {new Date(o.created_at).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+
+                {/* Specs Grid */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '12px',
+                    fontSize: '0.9rem',
+                    background: '#f8fafc',
+                    padding: '14px 18px',
+                    borderRadius: '8px',
+                    border: '1px solid #f1f5f9',
+                  }}
+                >
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em' }}>CUSTOMER</span>
+                    <div style={{ fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{o.customer_name || 'Anonymous'}</div>
+                    <div style={{ color: '#475569', fontSize: '0.82rem' }}>{o.customer_phone}</div>
+                  </div>
+
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em' }}>FABRIC</span>
+                    <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '2px' }}>{o.fabric_name_at_order || 'Custom Fabric'}</div>
+                    <div style={{ color: '#64748b', fontSize: '0.8rem' }}>Ref: {o.fabric_reference_at_order || 'N/A'}</div>
+                  </div>
+
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em' }}>STYLE & EMBROIDERY</span>
+                    <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '2px' }}>{o.sewing_style_name_at_order || 'Standard Cut'}</div>
+                    <div style={{ color: '#64748b', fontSize: '0.8rem' }}>Embr: {o.design_reference_at_order || 'None'}</div>
+                  </div>
+
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em' }}>FINANCIAL VALUE</span>
+                    <div style={{ fontWeight: 800, color: '#16a34a', fontSize: '1.05rem', marginTop: '2px' }}>
+                      {o.total_price_at_order ? `₦${Number(o.total_price_at_order).toLocaleString()}` : 'Custom Quote'}
+                    </div>
                   </div>
                 </div>
 
-                {/* Direct 1-Click Fast Forward Button */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {/* Measurements */}
+                {o.measurements && Object.keys(o.measurements).length > 0 && (
+                  <div style={{ fontSize: '0.85rem', color: '#334155' }}>
+                    <strong style={{ color: '#0f172a' }}>Body Measurements: </strong>
+                    {Object.entries(o.measurements)
+                      .map(([key, val]) => `${key.replace(/_/g, ' ')}: ${val}"`)
+                      .join(' | ')}
+                  </div>
+                )}
+
+                {/* Footer Controls */}
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderTop: '1px solid #f1f5f9',
+                    paddingTop: '14px',
+                    gap: '12px',
+                  }}
+                >
+                  {/* Shop Assignment */}
+                  <form
+                    action={assignOrderToShopAction}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <input type="hidden" name="orderRef" value={o.order_reference} />
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>
+                      Workshop Floor:
+                    </span>
+                    <select
+                      name="childShopId"
+                      defaultValue={o.child_shop_id || 'UNASSIGNED'}
+                      onChange={(e) => e.target.form?.requestSubmit()}
+                      style={{
+                        padding: '7px 12px',
+                        borderRadius: '6px',
+                        fontSize: '0.85rem',
+                        fontWeight: assignedShop ? 700 : 500,
+                        background: assignedShop ? '#ede9fe' : '#ffffff',
+                        color: assignedShop ? '#5b21b6' : '#0f172a',
+                        borderColor: assignedShop ? '#c4b5fd' : '#cbd5e1',
+                      }}
+                    >
+                      <option value="UNASSIGNED">Main HQ (In-House)</option>
+                      {childShops.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          🏢 {s.name} ({s.location || 'Branch'})
+                        </option>
+                      ))}
+                    </select>
+                  </form>
+
+                  {/* Stage Advancement Button */}
                   {nextAction && (
                     <form action={updateOrderStatusAction}>
-                      <input type="hidden" name="orderRef" value={ord.order_reference} />
+                      <input type="hidden" name="orderRef" value={o.order_reference} />
                       <input type="hidden" name="status" value={nextAction.nextStatus} />
                       <button
                         type="submit"
                         style={{
-                          padding: '6px 14px',
-                          background: '#176b4d',
+                          background: nextAction.isGreen ? '#16a34a' : '#0f172a',
                           color: '#fff',
                           border: 'none',
-                          borderRadius: 8,
-                          fontSize: 12,
-                          fontWeight: 700,
+                          padding: '8px 18px',
+                          borderRadius: '6px',
                           cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          boxShadow: nextAction.isGreen ? '0 2px 8px rgba(22, 163, 74, 0.25)' : 'none',
                         }}
                       >
                         {nextAction.label}
                       </button>
                     </form>
                   )}
-
-                  {/* Manual Dropdown fallback */}
-                  <form action={updateOrderStatusAction} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <input type="hidden" name="orderRef" value={ord.order_reference} />
-                    <select
-                      name="status"
-                      defaultValue={ord.status}
-                      style={{
-                        padding: '5px 8px',
-                        borderRadius: 6,
-                        border: '1px solid #d1d5db',
-                        fontSize: 12,
-                        color: '#374151',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {ALL_STATUSES.map((st) => (
-                        <option key={st} value={st}>{st}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="submit"
-                      style={{
-                        padding: '5px 10px',
-                        background: '#f3f4f6',
-                        color: '#374151',
-                        border: '1px solid #d1d5db',
-                        borderRadius: 6,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Set
-                    </button>
-                  </form>
                 </div>
               </div>
-
-              {/* Garment Details Summary */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, fontSize: 13, color: '#4b5563' }}>
-                <div>
-                  <span>Fabric: <strong>{ord.fabric_name_at_order}</strong></span>
-                  <span style={{ margin: '0 8px' }}>·</span>
-                  <span>Style: <strong>{ord.sewing_style_name_at_order}</strong></span>
-                </div>
-                <div>
-                  <strong style={{ fontSize: 15, color: '#176b4d' }}>
-                    ₦{Number(ord.total_price_at_order ?? 0).toLocaleString('en-NG')}
-                  </strong>
-                </div>
-              </div>
-
-              {/* Collapsible Cut Specs */}
-              {measurementEntries.length > 0 && (
-                <details style={{ marginTop: 8, fontSize: 12, color: '#6b7280' }}>
-                  <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Cutting specs ({measurementEntries.length})</summary>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                    {measurementEntries.map(([k, v]) => (
-                      <span key={k} style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: 4, color: '#111827' }}>
-                        {k.replace(/_/g, ' ')}: <strong>{String(v)}</strong>
-                      </span>
-                    ))}
-                  </div>
-                </details>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
