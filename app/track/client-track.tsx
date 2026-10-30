@@ -314,6 +314,82 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
               </div>
             </div>
 
+                        {/* 50% Balance Delivery Gate Notice */}
+            {(order.status === 'READY' || order.status === 'READY_FOR_PICKUP') && (
+              <div
+                style={{
+                  borderRadius: '12px',
+                  padding: '16px 20px',
+                  marginBottom: '24px',
+                  background: isFullyPaid ? '#f0fdf4' : '#fffbeb',
+                  border: `1.5px solid ${isFullyPaid ? '#86efac' : '#fcd34d'}`,
+                }}
+              >
+                {isFullyPaid ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '1.5rem' }}>✅</span>
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#166534', fontSize: '0.95rem' }}>
+                        100% Fully Paid — Cleared for Immediate Pickup / Delivery
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: '#15803d', marginTop: '2px' }}>
+                        Your bespoke outfit has passed final quality check and is cleared for handover.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '1.4rem' }}>⚠️</span>
+                      <span style={{ fontWeight: 800, color: '#92400e', fontSize: '0.95rem' }}>
+                        Outfit Ready — Final 50% Balance Required Before Delivery
+                      </span>
+                    </div>
+                    <p style={{ margin: '0 0 12px 0', fontSize: '0.88rem', color: '#78350f', lineHeight: 1.5 }}>
+                      Per workshop policy, bespoke orders cannot be released or dispatched for delivery until the remaining balance of <strong>₦{balanceRemaining.toLocaleString()}</strong> is settled and confirmed.
+                    </p>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <a
+                        href={`https://wa.me/2348030635560?text=${p2pWhatsAppMessage}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          background: '#16a34a',
+                          color: '#ffffff',
+                          padding: '8px 16px',
+                          borderRadius: '8px',
+                          textDecoration: 'none',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        💬 Submit Balance Receipt on WhatsApp
+                      </a>
+                      <button
+                        type="button"
+                        onClick={handleCopyAccount}
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #d97706',
+                          color: '#92400e',
+                          padding: '8px 14px',
+                          borderRadius: '8px',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {copied ? '✓ Copied OPay Account' : '📋 Copy OPay Account'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* PAYMENT & FINANCIAL LEDGER SECTION */}
             <div
               style={{

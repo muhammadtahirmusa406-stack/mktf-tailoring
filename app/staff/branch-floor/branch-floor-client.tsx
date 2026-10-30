@@ -8,7 +8,7 @@ export default function BranchFloorClient({ orders: initialOrders, profile }: an
   const [orders, setOrders] = useState(initialOrders);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const STAGES = ['CUTTING', 'EMBROIDERY', 'SEWING', 'READY_FOR_PICKUP'];
+  const STAGES = ['CUTTING', 'EMBROIDERY', 'SEWING', 'READY_FOR_PICKUP', 'DELIVERED'];
 
   const handleAdvance = async (orderId: string, currentStatus: string) => {
     const currentIndex = STAGES.indexOf(currentStatus);
@@ -57,6 +57,13 @@ export default function BranchFloorClient({ orders: initialOrders, profile }: an
             const m = order.customer_measurements || {};
             const isUpdating = updatingId === order.id;
 
+            // Balance check
+            const totalPrice = Number(order.total_price) || 0;
+            const amountPaid = Number(order.amount_paid) || 0;
+            const isFullyPaid = order.payment_status === '100%_FULLY_PAID' || (totalPrice > 0 && amountPaid >= totalPrice);
+            const isReadyForPickup = order.status === 'READY_FOR_PICKUP' || order.status === 'READY';
+            const isDelivered = order.status === 'DELIVERED';
+
             return (
               <div
                 key={order.id}
@@ -82,8 +89,8 @@ export default function BranchFloorClient({ orders: initialOrders, profile }: an
                         fontWeight: 800,
                         padding: '4px 10px',
                         borderRadius: '9999px',
-                        background: order.status === 'READY_FOR_PICKUP' ? '#dcfce7' : '#e0f2fe',
-                        color: order.status === 'READY_FOR_PICKUP' ? '#16a34a' : '#0284c7',
+                        background: isDelivered ? '#f1f5f9' : isReadyForPickup ? '#dcfce7' : '#e0f2fe',
+                        color: isDelivered ? '#475569' : isReadyForPickup ? '#16a34a' : '#0284c7',
                       }}
                     >
                       {order.status}
@@ -98,9 +105,9 @@ export default function BranchFloorClient({ orders: initialOrders, profile }: an
                       Embroidery: {order.design_reference_at_order || 'NONE'}
                     </div>
                     <div style={{ fontSize: '0.76rem', color: '#64748b', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <div>• Collar: {order.neck_style}</div>
-                      <div>• Pocket: {order.pocket_style}</div>
-                      <div>• Sleeve: {order.cuff_style}</div>
+                      <div>• Collar: {order.neck_style || 'Standard'}</div>
+                      <div>• Pocket: {order.pocket_style || 'Standard'}</div>
+                      <div>• Sleeve: {order.cuff_style || 'Standard'}</div>
                     </div>
                   </div>
 
@@ -120,37 +127,91 @@ export default function BranchFloorClient({ orders: initialOrders, profile }: an
                       </div>
                     </div>
                   )}
+
+                  {/* Payment Status Pill */}
+                  <div style={{ marginBottom: '14px' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      background: isFullyPaid ? '#dcfce7' : '#fef3c7',
+                      color: isFullyPaid ? '#15803d' : '#b45309',
+                      border: isFullyPaid ? '1px solid #bbf7d0' : '1px solid #fde68a'
+                    }}>
+                      {isFullyPaid ? '✓ 100% FULLY PAID' : '⚠ 50% BALANCE UNPAID'}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Stage Advancement Button */}
-                {order.status !== 'READY_FOR_PICKUP' ? (
-                  <button
-                    type="button"
-                    disabled={isUpdating}
-                    onClick={() => handleAdvance(order.id, order.status)}
-                    style={{
-                      background: '#0f172a',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      fontWeight: 800,
-                      fontSize: '0.85rem',
-                      cursor: isUpdating ? 'not-allowed' : 'pointer',
-                      width: '100%',
-                    }}
-                  >
-                    {isUpdating ? 'Advancing Stage...' : 'Advance Workshop Stage →'}
-                  </button>
-                ) : (
-                  <div style={{ textAlign: 'center', fontSize: '0.8rem', fontWeight: 800, color: '#16a34a', background: '#dcfce7', padding: '8px', borderRadius: '8px' }}>
-                    ✓ Ready for Pickup
-                  </div>
-                )}
+                {/* Stage Advancement & 50% Gate */}
+                <div>
+                  {isDelivered ? (
+                    <div style={{ background: '#f8fafc', padding: '10px', textAlign: 'center', borderRadius: '8px', color: '#64748b', fontSize: '0.8rem', fontWeight: 700 }}>
+                      ✓ Delivered to Customer
+                    </div>
+                  ) : isReadyForPickup ? (
+                    isFullyPaid ? (
+                      <button
+                        type="button"
+                        disabled={isUpdating}
+                        onClick={() => handleAdvance(order.id, order.status)}
+                        style={{
+                          background: '#16a34a',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          fontWeight: 800,
+                          fontSize: '0.85rem',
+                          cursor: isUpdating ? 'not-allowed' : 'pointer',
+                          width: '100%',
+                        }}
+                      >
+                        {isUpdating ? 'Updating...' : '✓ Mark Delivered / Release Outfit'}
+                      </button>
+                    ) : (
+                      <div style={{
+                        background: '#fef2f2',
+                        border: '1.5px solid #fca5a5',
+                        borderRadius: '8px',
+                        padding: '10px',
+                        textAlign: 'center',
+                        color: '#991b1b',
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        lineHeight: 1.4
+                      }}>
+                        ⛔ CANNOT DELIVER: Outstanding 50% Balance. Awaiting Master Admin payment verification.
+                      </div>
+                    )
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isUpdating}
+                      onClick={() => handleAdvance(order.id, order.status)}
+                      style={{
+                        background: '#0f172a',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        fontWeight: 800,
+                        fontSize: '0.85rem',
+                        cursor: isUpdating ? 'not-allowed' : 'pointer',
+                        width: '100%',
+                      }}
+                    >
+                      {isUpdating ? 'Advancing...' : `Advance → ${STAGES[STAGES.indexOf(order.status) + 1] || 'READY_FOR_PICKUP'}`}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
+
       </div>
     </div>
   );
