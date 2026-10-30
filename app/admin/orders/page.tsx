@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import { createClient } from '@/utils/supabase-server';
 import OrdersProgressionClient from './orders-progression-client';
 
@@ -8,74 +8,64 @@ export default async function AdminOrdersPage() {
   const supabase = await createClient();
 
   let orders: any[] = [];
+  let shops: any[] = [];
+
   try {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('Failed to query orders:', error.message);
-    }
-    orders = data || [];
+    const [ordersRes, shopsRes] = await Promise.all([
+      supabase.from('orders').select('*').order('created_at', { ascending: false }),
+      supabase.from('child_shops').select('id, name, location').order('name', { ascending: true })
+    ]);
+
+    orders = ordersRes.data || [];
+    shops = shopsRes.data || [];
   } catch (err) {
-    console.error('Unexpected error loading orders:', err);
-    orders = [];
+    console.error('Unexpected error loading orders or shops:', err);
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '36px 20px', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 font-sans">
+      <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Navigation Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-6">
           <div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              WORKSHOP PRODUCTION PIPELINE
-            </span>
-            <h1 style={{ fontSize: '1.85rem', fontWeight: 800, margin: '4px 0', color: '#0f172a' }}>
-              Order Lifecycle & Floor Manager
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold uppercase tracking-wider mb-2">
+              <span>●</span> Master Atelier Production Pipeline
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
+              Workshop Floor & Branch Routing
             </h1>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
-              Advance garments from Cutting to Pickup. Balance tracking updates in real time for clients.
+            <p className="text-xs text-slate-400 mt-1">
+              Assign garments to child shops, progress through Cutting to Pickup, and release under financial delivery gates.
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="flex items-center gap-3">
             <Link
-              href="/admin/catalog"
-              style={{
-                background: '#ffffff',
-                border: '1.5px solid #cbd5e1',
-                color: '#0f172a',
-                padding: '10px 16px',
-                borderRadius: '8px',
-                textDecoration: 'none',
-                fontSize: '0.88rem',
-                fontWeight: 700,
-              }}
+              href="/admin"
+              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-xs font-bold transition"
             >
-              🎨 Catalog Studio
+              ← Command Hub
+            </Link>
+            <Link
+              href="/admin/shops"
+              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-xs font-bold transition"
+            >
+              🏪 Child Shops ({shops.length})
             </Link>
             <Link
               href="/order/new"
               target="_blank"
-              style={{
-                background: '#4f46e5',
-                color: '#ffffff',
-                padding: '10px 16px',
-                borderRadius: '8px',
-                textDecoration: 'none',
-                fontSize: '0.88rem',
-                fontWeight: 700,
-              }}
+              className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition"
             >
-              👁 View Customer Portal ↗
+              + New Intake ↗
             </Link>
           </div>
         </div>
 
-        <OrdersProgressionClient initialOrders={orders} />
+        {/* Interactive Orders Progression Board */}
+        <OrdersProgressionClient initialOrders={orders} availableShops={shops} />
+
       </div>
     </div>
   );

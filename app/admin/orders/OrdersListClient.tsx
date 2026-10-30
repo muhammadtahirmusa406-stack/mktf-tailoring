@@ -4,8 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   updateOrderStatusAction,
+  updateOrderStatusFormAction,
   bulkUpdateOrderStatusAction,
   assignOrderToShopAction,
+  assignOrderToShopFormAction,
 } from './actions';
 
 type ChildShop = {
@@ -32,11 +34,11 @@ type OrderItem = {
 };
 
 const NEXT_STAGE: Record<string, { label: string; nextStatus: string; isGreen?: boolean }> = {
-  'NEW': { label: 'Start Production →', nextStatus: 'IN PRODUCTION' },
-  'CONFIRMED': { label: 'Start Production →', nextStatus: 'IN PRODUCTION' },
-  'ASSIGNED': { label: 'Start Production →', nextStatus: 'IN PRODUCTION' },
-  'IN PRODUCTION': { label: '✓ Mark Ready for Pickup', nextStatus: 'READY', isGreen: true },
-  'READY': { label: '📦 Mark Delivered', nextStatus: 'DELIVERED', isGreen: true },
+  'NEW': { label: 'Start Production â†’', nextStatus: 'IN PRODUCTION' },
+  'CONFIRMED': { label: 'Start Production â†’', nextStatus: 'IN PRODUCTION' },
+  'ASSIGNED': { label: 'Start Production â†’', nextStatus: 'IN PRODUCTION' },
+  'IN PRODUCTION': { label: 'âœ“ Mark Ready for Pickup', nextStatus: 'READY', isGreen: true },
+  'READY': { label: 'ًں“¦ Mark Delivered', nextStatus: 'DELIVERED', isGreen: true },
 };
 
 const ALL_STATUSES = ['NEW', 'CONFIRMED', 'ASSIGNED', 'IN PRODUCTION', 'READY', 'DELIVERED'];
@@ -208,7 +210,7 @@ export default function OrdersListClient({
                         letterSpacing: '0.04em',
                       }}
                     >
-                      ● {o.status}
+                      â—ڈ {o.status}
                     </span>
                   </div>
 
@@ -255,7 +257,7 @@ export default function OrdersListClient({
                   <div>
                     <span style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em' }}>FINANCIAL VALUE</span>
                     <div style={{ fontWeight: 800, color: '#16a34a', fontSize: '1.05rem', marginTop: '2px' }}>
-                      {o.total_price_at_order ? `₦${Number(o.total_price_at_order).toLocaleString()}` : 'Custom Quote'}
+                      {o.total_price_at_order ? `â‚¦${Number(o.total_price_at_order).toLocaleString()}` : 'Custom Quote'}
                     </div>
                   </div>
                 </div>
@@ -284,7 +286,7 @@ export default function OrdersListClient({
                 >
                   {/* Shop Assignment */}
                   <form
-                    action={assignOrderToShopAction}
+                    action={assignOrderToShopFormAction}
                     style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
                     <input type="hidden" name="orderRef" value={o.order_reference} />
@@ -308,7 +310,7 @@ export default function OrdersListClient({
                       <option value="UNASSIGNED">Main HQ (In-House)</option>
                       {childShops.map((s) => (
                         <option key={s.id} value={s.id}>
-                          🏢 {s.name} ({s.location || 'Branch'})
+                          ًںڈ¢ {s.name} ({s.location || 'Branch'})
                         </option>
                       ))}
                     </select>
@@ -316,7 +318,7 @@ export default function OrdersListClient({
 
                   {/* Stage Advancement Button */}
                   {nextAction && (
-                    <form action={updateOrderStatusAction}>
+                    <form action={updateOrderStatusFormAction}>
                       <input type="hidden" name="orderRef" value={o.order_reference} />
                       <input type="hidden" name="status" value={nextAction.nextStatus} />
                       <button

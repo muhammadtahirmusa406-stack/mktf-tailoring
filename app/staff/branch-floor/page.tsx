@@ -1,14 +1,22 @@
 import { createClient } from '@/utils/supabase-server';
 import { redirect } from 'next/navigation';
 import BranchFloorClient from './branch-floor-client';
+import Link from 'next/link';
 
-export default async function BranchFloorPage() {
+export const dynamic = 'force-dynamic';
+
+export default async function BranchFloorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ shopId?: string }>;
+}) {
   const supabase = await createClient();
+  const resolvedParams = await searchParams;
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    redirect('/staff/login');
+    redirect('/staff/login?next=/staff/branch-floor');
   }
 
   const { data: profile } = await supabase
@@ -17,64 +25,107 @@ export default async function BranchFloorPage() {
     .eq('id', user.id)
     .maybeSingle();
 
-  const role = profile?.role?.toLowerCase();
+  const role = profile?.role?.toLowerCase() || '';
+  const isAdmin = role === 'admin' || role === 'master_admin';
 
-  // If Admin lands here, redirect to Catalog Studio
-  if (role === 'admin' || role === 'master_admin') {
-    redirect('/admin/catalog');
-  }
+  // Fetch all child shops
+  const { data: allShops } = await supabase
+    .from('child_shops')
+    .select('*')
+    .order('name', { ascending: true });
 
-  // Resolve artisan's assigned child shop
-  let assignedShopId = profile?.child_shop_id || null;
-  let branchName = profile?.shop_name || 'Workshop Branch';
+  const shops = allShops || [];
+
+  // Determine active branch
+  let assignedShopId = resolvedParams?.shopId || profile?.child_shop_id || null;
 
   if (!assignedShopId) {
-    // Try matching owner_profile_id
-    const { data: ownedShop } = await supabase
-      .from('child_shops')
-      .select('id, name')
-      .eq('owner_profile_id', user.id)
-      .maybeSingle();
-
+    const ownedShop = shops.find(s => s.owner_profile_id === user.id);
     if (ownedShop) {
       assignedShopId = ownedShop.id;
-      branchName = ownedShop.name || branchName;
-    } else if (profile?.shop_name) {
-      // Try matching by registered shop_name
-      const { data: namedShop } = await supabase
-        .from('child_shops')
-        .select('id, name')
-        .ilike('name', profile.shop_name.trim())
-        .maybeSingle();
-
-      if (namedShop) {
-        assignedShopId = namedShop.id;
-        branchName = namedShop.name;
-      }
+    } else if (shops.length > 0) {
+      assignedShopId = shops[0].id;
     }
   }
 
-  // Strictly scope orders: if no shop assigned, isolate to empty list
+  const activeShop = shops.find(s => s.id === assignedShopId) || shops[0] || null;
+
+  // Fetch orders for this branch
   let orders: any[] = [];
-  if (assignedShopId) {
-    const { data: branchOrders } = await supabase
+  if (activeShop) {
+    const { data: shopOrders } = await supabase
       .from('orders')
       .select('*')
-      .eq('child_shop_id', assignedShopId)
+      .eq('child_shop_id', activeShop.id)
       .order('created_at', { ascending: false });
-
-    orders = branchOrders || [];
+    orders = shopOrders || [];
   }
 
   return (
-    <BranchFloorClient 
-      orders={orders} 
-      profile={{
-        ...(profile || {}),
-        branch_name: branchName,
-        child_shop_id: assignedShopId,
-        role: 'child_shop',
-      }} 
-    />
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 font-sans">
+      <div className="max-w-7xl mx-auto space-y-6">
+        
+        {/* Floor Navigation Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-6">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold uppercase tracking-wider mb-2">
+              <span>●</span> Live Artisan Floor
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-3">
+              <span>🧵</span> {activeShop?.name || 'Artisan Workshop Floor'}
+            </h1>
+            <p className="text-xs text-slate-400 mt-1">
+              {activeShop?.location || 'Central Workshop'} &bull; Cutting, Embroidery, and Sewing Workstations
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <form method="GET" action="/staff/branch-floor" className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-bold hidden sm:inline">Switch Floor:</span>
+                <select
+                  name="shopId"
+                  defaultValue={activeShop?.id || ''}
+                  aria-label="Switch Floor Branch"
+                  className="bg-slate-900 border border-slate-700 text-amber-300 text-xs font-bold rounded-xl px-3 py-2 focus:outline-none"
+                >
+                  {shops.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.location || 'HQ'})
+                    </option>
+                  ))}
+                </select>
+                <button type="submit" className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700">
+                  Switch 🔁
+                </button>
+              </form>
+            )}
+
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-xs font-bold transition"
+              >
+                ← Admin Hub
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* Client Interactive Floor Grid */}
+        {activeShop ? (
+          <BranchFloorClient
+            orders={orders} initialOrders={orders}
+            branchName={activeShop.name}
+            shopId={activeShop.id}
+          />
+        ) : (
+          <div className="p-8 text-center bg-slate-900 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+            No active workshop branches registered. Please create a child shop first in the Admin Hub.
+          </div>
+        )}
+
+      </div>
+    </div>
   );
 }

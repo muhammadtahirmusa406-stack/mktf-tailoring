@@ -1,8 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { isValidMeasurementValue, type MeasurementField } from './measurement-values';
+import { lookupCustomerByPhoneAction } from './lookup-action';
 
 type Props = {
   measurements: MeasurementField[];
@@ -13,7 +14,60 @@ export default function MeasurementStep({ measurements, initialValues }: Props) 
   const router = useRouter();
   const [values, setValues] = useState(initialValues);
   const [isContinuing, setIsContinuing] = useState(false);
-  const complete = measurements.length > 0 && measurements.every((item) => isValidMeasurementValue(values[item.key] ?? ''));
+
+  // Returning customer phone lookup state
+  const [phoneQuery, setPhoneQuery] = useState('');
+  const [searchingPhone, setSearchingPhone] = useState(false);
+  const [returningUser, setReturningUser] = useState<{
+    customerName: string;
+    previousRef: string;
+  } | null>(null);
+  const [lookupMessage, setLookupMessage] = useState<string | null>(null);
+
+  const complete =
+    measurements.length > 0 &&
+    measurements.every((item) => isValidMeasurementValue(values[item.key] ?? ''));
+
+  async function handlePhoneLookup() {
+    const cleanPhone = phoneQuery.trim();
+    if (!cleanPhone || cleanPhone.length < 7) {
+      setLookupMessage('Please enter a valid phone number (at least 7 digits).');
+      return;
+    }
+
+    setSearchingPhone(true);
+    setLookupMessage(null);
+
+    try {
+      const res = await lookupCustomerByPhoneAction(cleanPhone);
+      if (res.success && res.found) {
+        setReturningUser({
+          customerName: res.customerName,
+          previousRef: res.previousRef,
+        });
+
+        // Pre-fill measurements that match our field keys
+        if (res.measurements && typeof res.measurements === 'object') {
+          setValues((current) => {
+            const updated = { ...current };
+            for (const item of measurements) {
+              if (res.measurements[item.key] !== undefined) {
+                updated[item.key] = String(res.measurements[item.key]);
+              }
+            }
+            return updated;
+          });
+        }
+      } else {
+        setReturningUser(null);
+        setLookupMessage('No previous measurements found for this phone number. Please choose your values manually below.');
+      }
+    } catch {
+      setLookupMessage('Error checking phone records. Please select values below.');
+    } finally {
+      setSearchingPhone(false);
+    }
+  }
 
   function continueToNextStep() {
     if (!complete) return;
@@ -29,51 +83,129 @@ export default function MeasurementStep({ measurements, initialValues }: Props) 
   }
 
   return (
-    <section aria-labelledby="measurements-heading" style={{ padding: 20, border: '1px solid #dfe7e2', borderRadius: 14, background: '#fff' }}>
-      <div style={{ marginBottom: 18 }}>
-        <h2 id="measurements-heading" style={{ margin: '4px 0 6px', fontSize: 23 }}>Your Measurements</h2>
-        <p style={{ margin: 0, color: '#666' }}>Select the measurement values you were given.</p>
+    <section aria-labelledby="measurements-heading" className="p-6 bg-slate-900 border border-slate-800 rounded-2xl text-slate-100 font-sans space-y-6">
+      
+      {/* Step Header */}
+      <div>
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold uppercase tracking-wider mb-2">
+          <span>●</span> Step 2 of 3: Tailoring Dimensions
+        </div>
+        <h2 id="measurements-heading" className="text-2xl font-extrabold text-white">Your Body Measurements</h2>
+        <p className="text-xs text-slate-400 mt-1">Select whole-number values (in inches) for each dimension.</p>
       </div>
 
+      {/* Returning Customer Quick-Lookup Box */}
+      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+        <div className="flex items-center justify-between">
+          <label htmlFor="customer-phone" className="text-xs font-bold text-amber-400 uppercase tracking-wide flex items-center gap-1.5">
+            <span>✨</span> Returning Customer? Auto-Fill Your Measurements
+          </label>
+        </div>
+        <div className="flex gap-2">
+          <input
+            id="customer-phone"
+            type="tel"
+            value={phoneQuery}
+            onChange={(e) => setPhoneQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handlePhoneLookup(); } }}
+            placeholder="Enter your phone number (e.g., 08031234567)..."
+            className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+          />
+          <button
+            type="button"
+            onClick={handlePhoneLookup}
+            disabled={searchingPhone}
+            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl transition shadow-sm whitespace-nowrap"
+          >
+            {searchingPhone ? 'Checking...' : 'Find My Sizes 🔍'}
+          </button>
+        </div>
+
+        {/* Welcome Back Banner */}
+        {returningUser && (
+          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3">
+            <span className="text-xl">🧵</span>
+            <div>
+              <p className="text-xs font-bold text-emerald-400">
+                Welcome back, {returningUser.customerName}!
+              </p>
+              <p className="text-[11px] text-emerald-300/90 mt-0.5">
+                We loaded your saved tailoring sizes from order <span className="font-mono font-bold">{returningUser.previousRef}</span>. You can review and adjust any field below if you desire a looser or tighter fit.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Fallback Message */}
+        {lookupMessage && !returningUser && (
+          <p className="text-xs text-slate-400 bg-slate-900 p-2.5 rounded-lg border border-slate-800/80">
+            ℹ️ {lookupMessage}
+          </p>
+        )}
+      </div>
+
+      {/* Measurement Dropdown Selectors */}
       {measurements.length === 0 ? (
-        <p role="alert" style={errorStyle}>Measurements are not available for this sewing style right now.</p>
+        <p role="alert" className="text-xs text-rose-400 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20">
+          Measurements are not available for this sewing style right now.
+        </p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 14 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {measurements.map((measurement) => (
-            <label key={measurement.key} style={{ display: 'grid', gap: 7, padding: 14, border: '1px solid #e5e8e6', borderRadius: 10, background: '#fafbfa' }}>
-              <span style={{ fontWeight: 650, color: '#242424' }}>{measurement.label}</span>
-              <span style={{ position: 'relative' }}>
+            <label
+              key={measurement.key}
+              className="flex flex-col justify-between p-3.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition space-y-2"
+            >
+              <span className="text-xs font-bold text-slate-200">
+                {measurement.label}
+              </span>
+              <div className="relative">
                 <select
                   value={values[measurement.key] ?? ''}
                   onChange={(event) => {
                     setIsContinuing(false);
                     setValues((current) => ({ ...current, [measurement.key]: event.target.value }));
                   }}
-                  style={selectStyle}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-amber-400 font-mono font-bold focus:outline-none focus:border-amber-500 appearance-none"
                 >
-                  <option value="">Select a value</option>
-                  {Array.from({ length: 120 }, (_, index) => index + 1).map((value) => (
-                    <option key={value} value={value}>{value}</option>
+                  <option value="" disabled className="text-slate-500">
+                    Select a value
+                  </option>
+                  {Array.from({ length: 120 }, (_, i) => i + 1).map((num) => (
+                    <option key={num} value={String(num)} className="bg-slate-900 text-slate-100">
+                      {num}&quot;
+                    </option>
                   ))}
                 </select>
-                <span aria-hidden="true" style={arrowStyle}>⌄</span>
-              </span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 pointer-events-none">
+                  ▼
+                </span>
+              </div>
             </label>
           ))}
         </div>
       )}
 
-      <button type="button" onClick={continueToNextStep} disabled={!complete || isContinuing} style={{ ...continueButtonStyle, ...(complete && !isContinuing ? {} : disabledButtonStyle) }}>
-        {isContinuing ? 'Opening review…' : 'Review order'}
-      </button>
+      {/* Footer Navigation */}
+      <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition"
+        >
+          ← Previous Step
+        </button>
 
-      {!complete && measurements.length > 0 && <p style={{ margin: '10px 0 0', color: '#666', fontSize: 13 }}>Select a value for every measurement to continue.</p>}
+        <button
+          type="button"
+          onClick={continueToNextStep}
+          disabled={!complete || isContinuing}
+          className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 text-xs font-extrabold transition shadow-lg shadow-amber-500/20"
+        >
+          {isContinuing ? 'Saving...' : 'Review Order Summary →'}
+        </button>
+      </div>
+
     </section>
   );
 }
-
-const selectStyle = { width: '100%', minHeight: 48, appearance: 'none' as const, padding: '11px 42px 11px 12px', border: '1px solid #c9d0cc', borderRadius: 8, background: '#fff', color: '#222', fontSize: 16, cursor: 'pointer' } as const;
-const arrowStyle = { position: 'absolute' as const, right: 14, top: '50%', transform: 'translateY(-55%)', color: '#444', fontSize: 23, pointerEvents: 'none' as const };
-const continueButtonStyle = { width: '100%', marginTop: 22, padding: 14, border: 0, borderRadius: 9, background: '#176b4d', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer' } as const;
-const disabledButtonStyle = { background: '#aaa', cursor: 'not-allowed' } as const;
-const errorStyle = { margin: 0, padding: 14, border: '1px solid #efc8c8', borderRadius: 10, background: '#fff4f4', color: '#a32121' } as const;

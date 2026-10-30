@@ -206,3 +206,31 @@ export async function bulkUploadFilesAction(formData: FormData) {
     return { success: false, error: err.message };
   }
 }
+
+
+// Delete Embroidery Design
+export async function deleteDesignAction(idOrFormData: string | FormData): Promise<{ success: boolean; error?: string }> {
+  try {
+    let id = '';
+    if (typeof idOrFormData === 'string') {
+      id = idOrFormData;
+    } else if (idOrFormData && typeof idOrFormData === 'object' && 'get' in idOrFormData) {
+      id = (idOrFormData.get('designId') as string) || (idOrFormData.get('id') as string) || '';
+    }
+
+    if (!id) {
+      return { success: false, error: 'Design ID is required.' };
+    }
+
+    const supabase = await createClient();
+    const { error } = await supabase.from('embroidery_designs').delete().eq('id', id);
+    if (error) throw error;
+
+    revalidatePath('/admin/catalog');
+    revalidatePath('/order/new');
+    return { success: true };
+  } catch (err: any) {
+    console.error('Delete design error:', err);
+    return { success: false, error: err.message || 'Failed to delete design' };
+  }
+}
