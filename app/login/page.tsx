@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { FormEvent, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextUrl = searchParams.get('next') || '/partner/apply';
+  const explicitNext = searchParams.get('next');
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [fullName, setFullName] = useState('');
@@ -18,18 +18,61 @@ function LoginForm() {
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
 
+  async function routeUserByRole(supabase: any, userId: string) {
+    if (explicitNext) {
+      router.push(explicitNext);
+      router.refresh();
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    const role = profile?.role;
+
+    if (role === 'admin' || role === 'MASTER_ADMIN') {
+      router.push('/admin');
+      router.refresh();
+      return;
+    }
+
+    // Check if the user owns a child shop
+    const { data: shop } = await supabase
+      .from('child_shops')
+      .select('id, status')
+      .eq('owner_profile_id', userId)
+      .maybeSingle();
+
+    if (shop) {
+      if (shop.status === 'active' || role === 'child_shop') {
+        router.push('/shop/dashboard');
+      } else {
+        router.push('/partner/status');
+      }
+      router.refresh();
+      return;
+    }
+
+    // Default route for general users
+    router.push('/partner/apply');
+    router.refresh();
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     setError('');
     setLoading(true);
 
     const supabase = createClient();
 
     if (mode === 'signup') {
-      const redirectDestination = typeof window !== 'undefined'
-        ? `${window.location.origin}/auth/callback?next=/partner/apply`
-        : undefined;
+      const redirectDestination =
+        typeof window !== 'undefined'
+          ? `${window.location.origin}/auth/callback?next=/partner/apply`
+          : undefined;
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -48,7 +91,6 @@ function LoginForm() {
         return;
       }
 
-      // Check if email confirmation is required by Supabase
       if (data?.user && (!data.session || data.user.identities?.length === 0)) {
         setRegisteredEmail(email);
         setNeedsConfirmation(true);
@@ -56,7 +98,6 @@ function LoginForm() {
         return;
       }
 
-      // If Supabase has email confirmation disabled, user session is immediate
       if (data.user) {
         await supabase.from('profiles').upsert({
           id: data.user.id,
@@ -65,12 +106,10 @@ function LoginForm() {
           role: 'customer',
           is_active: true,
         });
+        await routeUserByRole(supabase, data.user.id);
       }
-
-      router.push(nextUrl);
-      router.refresh();
     } else {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -81,8 +120,9 @@ function LoginForm() {
         return;
       }
 
-      router.push(nextUrl);
-      router.refresh();
+      if (data?.user) {
+        await routeUserByRole(supabase, data.user.id);
+      }
     }
 
     setLoading(false);
@@ -105,227 +145,166 @@ function LoginForm() {
     <div
       style={{
         minHeight: '100vh',
-        backgroundColor: '#f1f5f9',
+        backgroundColor: '#090d16',
+        color: '#f8fafc',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '24px',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        padding: '24px 16px',
+        fontFamily: 'system-ui, sans-serif',
       }}
     >
-      <main
+      <div
         style={{
           width: '100%',
           maxWidth: '460px',
-          background: '#ffffff',
-          border: '1px solid #e2e8f0',
-          borderRadius: '16px',
+          backgroundColor: '#0f172a',
+          border: '1.5px solid #1e293b',
+          borderRadius: '20px',
           padding: '36px 32px',
-          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
         }}
       >
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <span style={{ fontSize: '2.5rem' }}>🪡</span>
+          <h1 style={{ fontSize: '1.6rem', fontWeight: 900, color: '#f8fafc', margin: '8px 0 4px' }}>
+            {mode === 'signin' ? 'Sign In to Workshop' : 'Join Workshop Network'}
+          </h1>
+          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
+            {mode === 'signin'
+              ? 'Access your child shop dashboard or admin atelier'
+              : 'Register your branch atelier to process bespoke orders'}
+          </p>
+        </div>
+
+        {error && (
+          <div
+            style={{
+              padding: '12px 14px',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '8px',
+              color: '#f87171',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              marginBottom: '20px',
+            }}
+          >
+            {error}
+          </div>
+        )}
+
         {needsConfirmation ? (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '3rem', marginBottom: '12px' }}>📬</div>
-            <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: '0 0 10px', color: '#0f172a' }}>
-              Check your inbox!
-            </h2>
-            <p style={{ color: '#475569', fontSize: '0.92rem', lineHeight: 1.6, margin: '0 0 20px' }}>
-              We sent a verification link to <br />
-              <strong style={{ color: '#0f172a' }}>{registeredEmail}</strong>.
-            </p>
-
-            <div
-              style={{
-                background: '#dcfce7',
-                border: '1px solid #86efac',
-                padding: '16px',
-                borderRadius: '10px',
-                color: '#14532d',
-                fontSize: '0.86rem',
-                lineHeight: 1.5,
-                textAlign: 'left',
-                marginBottom: '24px',
-              }}
-            >
-              ✓ <strong>Next Step:</strong> Click the confirmation link in that email to activate your account. You will automatically land on the <strong>Workshop Application Form</strong> to submit your branch details.
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setNeedsConfirmation(false);
-                setMode('signin');
-              }}
-              style={{
-                background: '#0f172a',
-                color: '#ffffff',
-                border: 'none',
-                padding: '12px 24px',
-                borderRadius: '8px',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-              }}
-            >
-              ← Back to Sign In
-            </button>
+          <div
+            style={{
+              padding: '16px',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              borderRadius: '10px',
+              color: '#fbbf24',
+              fontSize: '0.9rem',
+              lineHeight: '1.5',
+            }}
+          >
+            A confirmation link was sent to <strong>{registeredEmail}</strong>. Please check your inbox to activate your account.
           </div>
         ) : (
-          <>
-            {/* Toggle Tabs */}
-            <div
-              style={{
-                display: 'flex',
-                background: '#f1f5f9',
-                padding: '4px',
-                borderRadius: '10px',
-                marginBottom: '24px',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('signin');
-                  setError('');
-                }}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  background: mode === 'signin' ? '#0f172a' : 'transparent',
-                  color: mode === 'signin' ? '#ffffff' : '#64748b',
-                }}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('signup');
-                  setError('');
-                }}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  background: mode === 'signup' ? '#0f172a' : 'transparent',
-                  color: mode === 'signup' ? '#ffffff' : '#64748b',
-                }}
-              >
-                Create Account
-              </button>
-            </div>
-
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '0 0 6px', color: '#0f172a' }}>
-              {mode === 'signin' ? 'Sign in to Workshop' : 'Join Tailoring Network'}
-            </h1>
-            <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '0.88rem' }}>
-              {mode === 'signin'
-                ? 'Sign in to access assigned jobs and cutting specs.'
-                : 'Create an account to apply as an authorized workshop branch.'}
-            </p>
-
-            {error && (
-              <div
-                style={{
-                  background: '#fee2e2',
-                  color: '#991b1b',
-                  border: '1px solid #fca5a5',
-                  padding: '12px 14px',
-                  borderRadius: '8px',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  marginBottom: '18px',
-                }}
-              >
-                ✕ {error}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {mode === 'signup' && (
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px' }}>
+                  FULL NAME / WORKSHOP LEAD
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ibrahim Abubakar"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  style={inputStyle}
+                />
               </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {mode === 'signup' && (
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                    Your Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Ibrahim Abubakar"
-                    style={inputStyle}
-                  />
-                </div>
-              )}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px' }}>
+                EMAIL ADDRESS
+              </label>
+              <input
+                type="email"
+                required
+                placeholder="tailor@workshop.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tailor@example.com"
-                  style={inputStyle}
-                />
-              </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px' }}>
+                PASSWORD
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                  Password *
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  style={inputStyle}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  marginTop: '8px',
-                  background: '#0f172a',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '14px',
-                  borderRadius: '8px',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  opacity: loading ? 0.7 : 1,
-                }}
-              >
-                {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In →' : 'Continue to Application →'}
-              </button>
-            </form>
-          </>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                marginTop: '10px',
+                padding: '13px',
+                backgroundColor: '#f59e0b',
+                color: '#090d16',
+                border: 'none',
+                borderRadius: '10px',
+                fontSize: '0.95rem',
+                fontWeight: 900,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.7 : 1,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {loading ? 'Processing...' : mode === 'signin' ? 'Sign In →' : 'Register Account →'}
+            </button>
+          </form>
         )}
-      </main>
+
+        <div style={{ marginTop: '24px', textAlign: 'center', borderTop: '1px solid #1e293b', paddingTop: '16px' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setMode(mode === 'signin' ? 'signup' : 'signin');
+              setError('');
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#38bdf8',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {mode === 'signin'
+              ? "Don't have an account? Apply to become a child workshop"
+              : 'Already have an approved account? Sign In'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Loading...</div>}>
       <LoginForm />
     </Suspense>
   );
