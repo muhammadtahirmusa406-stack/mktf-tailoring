@@ -15,7 +15,8 @@ export default function OrdersProgressionClient({
   availableShops?: any[];
 }) {
   const [orders, setOrders] = useState(initialOrders);
-  const [activeFilter, setActiveFilter] = useState('ALL');
+  const [activeFilter, setActiveFilter] = useState('ACTIVE');
+  const [historySearch, setHistorySearch] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [lightboxImg, setLightboxImg] = useState<{ src: string; title: string } | null>(null);
 
@@ -27,14 +28,6 @@ export default function OrdersProgressionClient({
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
-  };
-
-  const toggleSelectAll = (filteredList: any[]) => {
-    if (selectedIds.length === filteredList.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(filteredList.map((o) => o.id));
-    }
   };
 
   const handleBulkAdvance = async () => {
@@ -49,7 +42,6 @@ export default function OrdersProgressionClient({
       if (res.errors && res.errors.length > 0) {
         alert(`Advanced ${res.advancedCount} orders.\n\nExceptions:\n` + res.errors.join('\n'));
       }
-      // Optimistically step selected orders to their next stage
       setOrders((prev) =>
         prev.map((ord) => {
           if (!selectedIds.includes(ord.id)) return ord;
@@ -92,210 +84,164 @@ export default function OrdersProgressionClient({
     }
   };
 
-  const handleCashierSettlement = async (orderId: string, totalPrice: number) => {
-    if (!confirm('Confirm receipt of full remaining cash balance for this order?')) return;
+  // Separation: Active Pipeline vs Completed History
+  const activeOrders = orders.filter((o) => o.status !== 'COMPLETED');
+  const completedOrders = orders.filter((o) => o.status === 'COMPLETED');
 
-    setUpdatingId(orderId);
-    const res = await confirmFinalPaymentAction(orderId, totalPrice);
-    setUpdatingId(null);
+  // Filtered list for active cards
+  const displayedActiveOrders =
+    activeFilter === 'ACTIVE'
+      ? activeOrders
+      : activeOrders.filter((o) => o.status === activeFilter);
 
-    if (res.success) {
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === orderId
-            ? { ...o, amount_paid: totalPrice, payment_status: '100%_FULLY_PAID' }
-            : o
-        )
-      );
-    } else {
-      alert(res.error || 'Failed to record payment');
-    }
-  };
-
-  const filteredOrders =
-    activeFilter === 'ALL'
-      ? orders
-      : orders.filter((o) => o.status === activeFilter);
+  // Search filtered list for completed history table
+  const filteredCompletedOrders = completedOrders.filter((o) => {
+    const q = historySearch.toLowerCase();
+    return (
+      (o.order_reference || '').toLowerCase().includes(q) ||
+      (o.customer_name || '').toLowerCase().includes(q) ||
+      (o.customer_phone || '').toLowerCase().includes(q)
+    );
+  });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       
-      {/* Top Filter and Bulk Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-800">
-        
-        {/* Stage Filter Navigation */}
-        <div className="flex items-center gap-2 overflow-x-auto py-1">
-          <button
-            onClick={() => setActiveFilter('ALL')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
-              activeFilter === 'ALL'
-                ? 'bg-amber-500 text-slate-950'
-                : 'bg-slate-900 text-slate-400 hover:text-white'
-            }`}
-          >
-            All Orders ({orders.length})
-          </button>
-          {STAGES.map((st) => {
-            const count = orders.filter((o) => o.status === st).length;
-            return (
-              <button
-                key={st}
-                onClick={() => setActiveFilter(st)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
-                  activeFilter === st
-                    ? 'bg-amber-500 text-slate-950'
-                    : 'bg-slate-900 text-slate-400 hover:text-white'
-                }`}
-              >
-                {st} ({count})
-              </button>
-            );
-          })}
-        </div>
+      {/* 1. ACTIVE PIPELINE SECTION */}
+      <section className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3 border-b border-slate-800">
+          <div>
+            <h2 className="text-xl font-black text-white flex items-center gap-2">
+              <span>⚡</span> Active Workshop Floor ({activeOrders.length})
+            </h2>
+            <p className="text-xs text-slate-400">Garments currently in active production and dispatch stages.</p>
+          </div>
 
-        {/* Bulk Action Controls */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => toggleSelectAll(filteredOrders)}
-            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-800 transition"
-          >
-            {selectedIds.length === filteredOrders.length && filteredOrders.length > 0
-              ? 'Deselect All'
-              : 'Select All Visible'}
-          </button>
-
-          {selectedIds.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
             <button
-              disabled={isBulkLoading}
-              onClick={handleBulkAdvance}
-              className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold transition shadow-md flex items-center gap-1.5"
-            >
-              <span>⚡ Advance Selected ({selectedIds.length})</span>
-            </button>
-          )}
-        </div>
-
-      </div>
-
-      {/* Orders Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredOrders.map((ord) => {
-          const totalPrice = Number(ord.total_price) || 0;
-          const balance = totalPrice - Number(ord.amount_paid || 0);
-          const isPaid = ord.payment_status === '100%_FULLY_PAID' || balance <= 0;
-          const currentStageIdx = STAGES.indexOf(ord.status);
-          const nextStage = STAGES[currentStageIdx + 1];
-          const isSelected = selectedIds.includes(ord.id);
-
-          return (
-            <div
-              key={ord.id}
-              className={`p-5 rounded-2xl bg-slate-900 border transition flex flex-col justify-between shadow-lg space-y-4 ${
-                isSelected ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-800 hover:border-slate-700'
+              onClick={() => setActiveFilter('ACTIVE')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+                activeFilter === 'ACTIVE' ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-slate-400 hover:text-white'
               }`}
             >
-              <div>
-                {/* Header: Checkbox + Reference + Status */}
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2.5">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelectOrder(ord.id)}
-                      className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-0 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Order ID</span>
-                      <p className="text-base font-black text-amber-400 font-mono leading-tight">{ord.order_reference}</p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
-                    {ord.status}
-                  </span>
-                </div>
+              All Active ({activeOrders.length})
+            </button>
+            {STAGES.filter((st) => st !== 'COMPLETED').map((st) => {
+              const count = activeOrders.filter((o) => o.status === st).length;
+              return (
+                <button
+                  key={st}
+                  onClick={() => setActiveFilter(st)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+                    activeFilter === st ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {st} ({count})
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-                {/* Customer Info & Image Thumbnail */}
-                <div className="mt-3 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold text-slate-100">{ord.customer_name}</p>
-                    <p className="text-xs text-slate-400 font-mono mt-0.5">{ord.customer_phone}</p>
-                  </div>
+        {/* Active Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {displayedActiveOrders.map((ord) => {
+            const balance = Number(ord.total_price || 0) - Number(ord.amount_paid || 0);
+            const isPaid = ord.payment_status === '100%_FULLY_PAID' || balance <= 0;
+            const currentStageIdx = STAGES.indexOf(ord.status);
+            const nextStage = STAGES[currentStageIdx + 1];
 
-                  {ord.design_image_url && (
-                    <div
-                      onClick={() =>
-                        setLightboxImg({
-                          src: ord.design_image_url,
-                          title: `${ord.customer_name} - ${ord.design_name || 'Design Reference'}`,
-                        })
-                      }
-                      className="cursor-pointer relative group w-12 h-12 rounded-lg overflow-hidden border border-slate-700 flex-shrink-0"
-                    >
-                      <img
-                        src={ord.design_image_url}
-                        alt="Style"
-                        className="w-full h-full object-cover group-hover:scale-105 transition"
+            return (
+              <div
+                key={ord.id}
+                className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between shadow-lg space-y-4"
+              >
+                <div>
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(ord.id)}
+                        onChange={() => toggleSelectOrder(ord.id)}
+                        className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-amber-400 cursor-pointer"
                       />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-[10px]">
-                        🔍
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500">ORDER ID</span>
+                        <p className="text-sm font-black text-amber-400 font-mono">{ord.order_reference}</p>
                       </div>
                     </div>
-                  )}
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      {ord.status || 'NEW'}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-slate-100">{ord.customer_name || 'Walk-in Client'}</p>
+                      <p className="text-xs text-slate-400 font-mono mt-0.5">{ord.customer_phone || 'N/A'}</p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {ord.sewing_style_image_url && (
+                        <div
+                          onClick={() => setLightboxImg({ src: ord.sewing_style_image_url, title: `${ord.customer_name} - Style` })}
+                          className="cursor-pointer w-10 h-10 rounded-lg overflow-hidden border border-slate-700 bg-slate-950"
+                        >
+                          <img src={ord.sewing_style_image_url} alt="Style" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      {ord.design_image_url && (
+                        <div
+                          onClick={() => setLightboxImg({ src: ord.design_image_url, title: `${ord.customer_name} - Artwork` })}
+                          className="cursor-pointer w-10 h-10 rounded-lg overflow-hidden border border-amber-500/40 bg-slate-950"
+                        >
+                          <img src={ord.design_image_url} alt="Artwork" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Branch Assignment Selector */}
+                  <div className="mt-3">
+                    <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                      Assigned Workshop Branch
+                    </label>
+                    <select
+                      value={ord.child_shop_id || ''}
+                      disabled={updatingId === ord.id}
+                      onChange={(e) => handleAssignShop(ord.id, e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-bold text-slate-200 focus:outline-none focus:border-amber-400"
+                    >
+                      <option value="">-- Unassigned (Central Queue) --</option>
+                      {availableShops.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.location || 'Branch'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                {/* Branch Routing Dropdown */}
-                <div className="mt-3 p-3 rounded-xl bg-slate-950 border border-slate-800">
-                  <label htmlFor={`shop-select-${ord.id}`} className="text-[10px] font-bold uppercase text-slate-400 block mb-1">
-                    Assigned Workshop Branch
-                  </label>
-                  <select
-                    id={`shop-select-${ord.id}`}
-                    value={ord.child_shop_id || ''}
-                    disabled={updatingId === ord.id}
-                    onChange={(e) => handleAssignShop(ord.id, e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-amber-300 font-semibold focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="">-- Unassigned (Central Queue) --</option>
-                    {availableShops.map((sh) => (
-                      <option key={sh.id} value={sh.id}>
-                        {sh.name} {sh.location ? `(${sh.location})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Financial Overview */}
-                <div className="mt-3 p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
+                {/* Price and Balance */}
+                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-[10px] text-slate-500 uppercase block">Total Price</span>
-                    <span className="font-bold text-slate-200">₦{totalPrice.toLocaleString()}</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Price</span>
+                    <span className="font-bold text-slate-200 font-mono">₦{Number(ord.total_price || 0).toLocaleString()}</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] text-slate-500 uppercase block">Balance Due</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Balance Due</span>
                     <span className={`font-bold ${isPaid ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {isPaid ? '✓ 100% Settled' : `₦${balance.toLocaleString()}`}
+                      {isPaid ? '✓ 100% Settled' : `₦${balance.toLocaleString()} Due`}
                     </span>
                   </div>
                 </div>
-              </div>
 
-              {/* Action Controls */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                {!isPaid && (
-                  <button
-                    disabled={updatingId === ord.id}
-                    onClick={() => handleCashierSettlement(ord.id, totalPrice)}
-                    className="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold transition shadow-sm"
-                  >
-                    💰 Cashier: Settle ₦{balance.toLocaleString()}
-                  </button>
-                )}
-
-                <div className="grid grid-cols-2 gap-2">
+                {/* Actions */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
                   <Link
                     href={`/admin/orders/${ord.id}/print`}
                     target="_blank"
-                    className="py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold text-center border border-slate-700 transition"
+                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold text-center border border-slate-700 transition"
                   >
                     🖨️ Job Slip
                   </Link>
@@ -304,35 +250,119 @@ export default function OrdersProgressionClient({
                     <button
                       disabled={updatingId === ord.id}
                       onClick={() => handleStatusChange(ord.id, nextStage)}
-                      className="py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold transition text-center shadow-sm"
+                      className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-black text-center transition"
                     >
                       {updatingId === ord.id ? 'Saving...' : `Advance → ${nextStage}`}
                     </button>
-                  ) : (
-                    <span className="py-2 rounded-xl bg-emerald-500/10 text-emerald-400 text-xs font-bold text-center border border-emerald-500/20">
-                      Completed ✓
-                    </span>
-                  )}
+                  ) : null}
                 </div>
               </div>
+            );
+          })}
 
+          {displayedActiveOrders.length === 0 && (
+            <div className="col-span-full py-12 text-center text-slate-500 text-sm bg-slate-900/40 rounded-2xl border border-slate-800">
+              No active orders currently pending on the workshop floor.
             </div>
-          );
-        })}
+          )}
+        </div>
+      </section>
 
-        {filteredOrders.length === 0 && (
-          <div className="col-span-full py-12 text-center text-slate-500 text-sm bg-slate-900/40 rounded-2xl border border-slate-800">
-            No orders found under {activeFilter} stage.
+      {/* 2. COMPLETED ORDERS HISTORY SECTION */}
+      <section className="space-y-4 pt-6 border-t border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-black text-emerald-400 flex items-center gap-2">
+              <span>📦</span> Workshop Orders History ({completedOrders.length})
+            </h2>
+            <p className="text-xs text-slate-400">Archived archive of garments finished, delivered, and finalized.</p>
           </div>
-        )}
-      </div>
 
-      {/* Fullscreen Image Lightbox Modal */}
-      <ImageLightboxModal
-        src={lightboxImg?.src || null}
-        alt={lightboxImg?.title}
-        onClose={() => setLightboxImg(null)}
-      />
+          <div className="w-full sm:w-72">
+            <input
+              type="text"
+              placeholder="Search history by ref or client..."
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+            />
+          </div>
+        </div>
+
+        {/* History Table */}
+        <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/60 shadow-lg">
+          <table className="w-full text-left text-xs text-slate-300">
+            <thead className="bg-slate-950/80 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-800">
+              <tr>
+                <th className="p-4">Reference</th>
+                <th className="p-4">Client Name</th>
+                <th className="p-4">Workshop Branch</th>
+                <th className="p-4">Total Amount</th>
+                <th className="p-4">Payment</th>
+                <th className="p-4">Completed Date</th>
+                <th className="p-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {filteredCompletedOrders.map((ord) => {
+                const assignedShop = availableShops.find((s) => s.id === ord.child_shop_id);
+                const formattedDate = ord.created_at
+                  ? new Date(ord.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : 'N/A';
+
+                return (
+                  <tr key={ord.id} className="hover:bg-slate-800/40 transition">
+                    <td className="p-4 font-mono font-bold text-amber-400">
+                      {ord.order_reference}
+                    </td>
+                    <td className="p-4 font-semibold text-white">
+                      {ord.customer_name || 'Walk-in Client'}
+                      {ord.customer_phone && <span className="block text-[10px] text-slate-500 font-mono">{ord.customer_phone}</span>}
+                    </td>
+                    <td className="p-4 text-slate-400">
+                      {assignedShop ? assignedShop.name : 'Central Queue'}
+                    </td>
+                    <td className="p-4 font-mono font-bold text-slate-200">
+                      ₦{Number(ord.total_price || 0).toLocaleString()}
+                    </td>
+                    <td className="p-4">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        ✓ Settled
+                      </span>
+                    </td>
+                    <td className="p-4 text-slate-400 text-[11px]">
+                      {formattedDate}
+                    </td>
+                    <td className="p-4 text-right">
+                      <Link
+                        href={`/admin/orders/${ord.id}/print`}
+                        target="_blank"
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold border border-slate-700 transition"
+                      >
+                        🖨️ Slip
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {filteredCompletedOrders.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-slate-500">
+                    No completed order history records found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Lightbox Modal */}
+      {lightboxImg && (
+        <ImageLightboxModal src={lightboxImg.src} alt={lightboxImg.title} onClose={() => setLightboxImg(null)} />
+      )}
+
     </div>
   );
 }

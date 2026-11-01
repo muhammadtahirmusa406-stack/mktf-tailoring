@@ -63,20 +63,20 @@ export default async function AdminOrdersPage() {
               href="/admin"
               className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-xs font-bold transition"
             >
-              ? Command Hub
+              📊 Command Hub
             </Link>
             <Link
               href="/admin/shops"
               className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-xs font-bold transition"
             >
-              ?? Child Shops ({shops.length})
+              🏪 Child Shops ({shops.length})
             </Link>
             <Link
               href="/order/new"
               target="_blank"
               className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition"
             >
-              + New Intake ?
+              + New Intake ↗
             </Link>
           </div>
         </div>

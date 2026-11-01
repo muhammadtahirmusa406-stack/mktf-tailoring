@@ -21,10 +21,10 @@ export default function Navbar({ role }: { role?: string }) {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
       await supabase.auth.signOut();
-      router.push('/staff/login');
+      router.push('/login');
       router.refresh();
     } catch {
-      window.location.href = '/staff/login';
+      window.location.href = '/login';
     }
   };
 
@@ -103,7 +103,6 @@ export default function Navbar({ role }: { role?: string }) {
     return (
       <header className="bg-slate-950 border-b border-indigo-900/60 text-white sticky top-0 z-50 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          
           <Link href="/shop/dashboard" className="flex items-center gap-3 group">
             <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-white text-xl tracking-wider shadow-md">
               🧵
@@ -147,7 +146,6 @@ export default function Navbar({ role }: { role?: string }) {
               🚪 Sign Out
             </button>
           </nav>
-
         </div>
       </header>
     );
@@ -165,7 +163,6 @@ export default function Navbar({ role }: { role?: string }) {
   return (
     <header className="bg-slate-950 border-b border-slate-800 text-white sticky top-0 z-50 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        
         <Link href="/admin" className="flex items-center gap-3 group">
           <div className="w-10 h-10 rounded-xl bg-amber-500 group-hover:bg-amber-400 flex items-center justify-center font-black text-slate-950 text-xl tracking-wider shadow-md transition">
             MKTF
@@ -205,8 +202,15 @@ export default function Navbar({ role }: { role?: string }) {
             <span>+ Intake Form</span>
             <span className="text-xs">↗</span>
           </Link>
-        </nav>
 
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="ml-2 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-rose-950 text-slate-300 hover:text-rose-300 border border-slate-700 font-bold transition text-xs cursor-pointer"
+          >
+            🚪 Sign Out
+          </button>
+        </nav>
       </div>
     </header>
   );
