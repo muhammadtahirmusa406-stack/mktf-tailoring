@@ -1,4 +1,4 @@
-import { createServerClient } from '@supabase/ssr';
+﻿import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
@@ -19,16 +19,41 @@ export async function middleware(request: NextRequest) {
           supabaseResponse = NextResponse.next({
             request,
           });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // Strip out persistent multi-day expiration so cookies are strictly session-only
+            const sessionOptions = { ...options };
+            delete sessionOptions.maxAge;
+            delete sessionOptions.expires;
+            supabaseResponse.cookies.set(name, value, sessionOptions);
+          });
         },
       },
     }
   );
 
-  // Refresh auth session
-  await supabase.auth.getUser();
+  // 1. Authenticate user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const path = request.nextUrl.pathname;
+
+  // 2. Gatekeeper for Master Admin Routes
+  if (path.startsWith('/admin')) {
+    if (!user) {
+      const redirectUrl = new URL('/login', request.url);
+      redirectUrl.searchParams.set('next', path);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
+  // 3. Gatekeeper for Child Shop / Staff Artisan Routes
+  if (path.startsWith('/shop') || path.startsWith('/staff/branch-floor')) {
+    if (!user) {
+      const redirectUrl = new URL('/staff/login', request.url);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
 
   return supabaseResponse;
 }

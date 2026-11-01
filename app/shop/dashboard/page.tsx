@@ -15,7 +15,7 @@ export default async function ChildShopDashboardPage({
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    redirect('/login?next=/shop/dashboard');
+    redirect('/staff/login');
   }
 
   const { data: profile } = await supabase
@@ -124,7 +124,7 @@ export default async function ChildShopDashboardPage({
               <span>📍 {activeShop.location || 'Branch Floor'}</span>
               <span>•</span>
               <span>Artisan Floor Mode</span>
-              {isAdmin && <span className="text-amber-400 font-bold">(Supervisory Mode)</span>}
+              
             </p>
           </div>
 
@@ -152,14 +152,7 @@ export default async function ChildShopDashboardPage({
               </form>
             )}
 
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-xs font-bold transition"
-              >
-                ? Back to Admin Hub
-              </Link>
-            )}
+            
             <Link
               href="/order/new"
               target="_blank"
