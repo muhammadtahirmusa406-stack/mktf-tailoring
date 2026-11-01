@@ -5,6 +5,17 @@ import Link from 'next/link';
 import ImageLightboxModal from '@/components/ui/image-lightbox-modal';
 import { updateShopOrderStatusAction } from './actions';
 
+
+  const formatDimensionLabel = (key: string, idx: number) => {
+    // If it's already a clean string name
+    if (!key.includes('-') && key.length < 25) {
+      return key.replace(/_/g, ' ');
+    }
+    // Standard ordered dimension fallbacks for Hausa bespoke tailoring
+    const defaultLabels = ['Neck (Wuya)', 'Chest (Gaba)', 'Sleeve (Hannu)', 'Kaftan Length', 'Trouser Length', 'Waist (Kugu)', 'Thigh', 'Cuff'];
+    return defaultLabels[idx] || `Dimension #${idx + 1}`;
+  };
+  
 export default function ShopFloorClient({ initialOrders, shopName, shopId }: any) {
   const [orders, setOrders] = useState<any[]>(initialOrders);
   const [filter, setFilter] = useState<string>('ALL');
@@ -104,7 +115,7 @@ export default function ShopFloorClient({ initialOrders, shopName, shopId }: any
                         <img src={ord.sewing_style_image_url} alt="Cut" className="w-full h-full object-cover group-hover:scale-105 transition" />
                         <span className="absolute top-0 left-0 bg-slate-900/80 text-[8px] font-bold text-slate-300 px-1 rounded-br">CUT</span>
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-[10px]">
-                          ??
+                          🔍
                         </div>
                       </div>
                     )}
@@ -117,7 +128,7 @@ export default function ShopFloorClient({ initialOrders, shopName, shopId }: any
                         <img src={ord.design_image_url} alt="Design" className="w-full h-full object-cover group-hover:scale-105 transition" />
                         <span className="absolute top-0 left-0 bg-amber-500/90 text-[8px] font-bold text-slate-950 px-1 rounded-br">ART</span>
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-[10px]">
-                          ??
+                          🔍
                         </div>
                       </div>
                     )}
@@ -129,9 +140,9 @@ export default function ShopFloorClient({ initialOrders, shopName, shopId }: any
                   <div className="mt-3 p-3 rounded-xl bg-slate-950 border border-slate-800/80">
                     <p className="text-[10px] font-bold uppercase text-slate-500 mb-1.5">Artisan Dimensions</p>
                     <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      {Object.entries(ord.customer_measurements).slice(0, 6).map(([k, v]: [string, any]) => (
+                      {Object.entries(ord.customer_measurements).slice(0, 8).map(([k, v]: [string, any], idx: number) => (
                         <div key={k} className="p-1 rounded bg-slate-900 border border-slate-800">
-                          <span className="text-[9px] text-slate-400 uppercase block truncate">{k.replace('_', ' ')}</span>
+                          <span className="text-[9px] text-slate-400 uppercase block truncate">{formatDimensionLabel(k, idx)}</span>
                           <span className="font-bold text-amber-400 font-mono">{v}&quot;</span>
                         </div>
                       ))}
@@ -164,7 +175,7 @@ export default function ShopFloorClient({ initialOrders, shopName, shopId }: any
                     onClick={() => handleStageChange(ord.id, nextStage)}
                     className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold text-center transition shadow-sm"
                   >
-                    {loadingId === ord.id ? 'Saving...' : `Advance ? ${nextStage}`}
+                    {loadingId === ord.id ? 'Saving...' : `Advance → ${nextStage}`}
                   </button>
                 ) : (
                   <span className="px-3 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 text-xs font-bold text-center border border-emerald-500/20">

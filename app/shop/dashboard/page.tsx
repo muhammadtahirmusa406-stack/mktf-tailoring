@@ -55,7 +55,7 @@ export default async function ChildShopDashboardPage({
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-4">
-          <span className="text-4xl">??</span>
+          <span className="text-4xl">🏬</span>
           <h2 className="text-xl font-bold text-white">No Workshop Branch Configured</h2>
           <p className="text-xs text-slate-400">
             {isAdmin
@@ -115,13 +115,13 @@ export default async function ChildShopDashboardPage({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-6">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold uppercase tracking-wider mb-2">
-              <span>?</span> Workshop Floor: {activeShop.name}
+              <span>🧵</span> Workshop Floor: {activeShop.name}
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-3">
-              <span>??</span> {activeShop.name}
+              <span>🏬</span> {activeShop.name}
             </h1>
             <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
-              <span>?? {activeShop.location || 'Branch Floor'}</span>
+              <span>📍 {activeShop.location || 'Branch Floor'}</span>
               <span>•</span>
               <span>Artisan Floor Mode</span>
               {isAdmin && <span className="text-amber-400 font-bold">(Supervisory Mode)</span>}
@@ -147,7 +147,7 @@ export default async function ChildShopDashboardPage({
                   type="submit"
                   className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition"
                 >
-                  Switch ??
+                  Switch ⇄
                 </button>
               </form>
             )}
