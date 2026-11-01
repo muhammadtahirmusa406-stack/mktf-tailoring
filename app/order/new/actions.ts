@@ -34,9 +34,11 @@ export async function checkReturningCustomerAction(phone: string) {
 export async function createNewOrderAction(orderData: {
   sewingStyleId: string;
   sewingStyleName: string;
+  sewingStyleImageUrl?: string | null;
   sewingFee: number;
   designName: string;
   designCode: string;
+  designImageUrl?: string | null;
   embroideryFee: number;
   paymentPlan: '50_PERCENT' | '100_PERCENT';
   customerName?: string;
@@ -121,10 +123,12 @@ export async function createNewOrderAction(orderData: {
         status: 'NEW',
         sewing_style_id: orderData.sewingStyleId,
         sewing_style_name_at_order: orderData.sewingStyleName,
+        sewing_style_image_url: orderData.sewingStyleImageUrl || null,
         sewing_charge_at_order: orderData.sewingFee,
         sewing_fee: orderData.sewingFee,
         design_name_at_order: orderData.designName,
         design_reference_at_order: orderData.designCode,
+        design_image_url: orderData.designImageUrl || null,
         design_price_at_order: orderData.embroideryFee,
         embroidery_fee: orderData.embroideryFee,
         total_price_at_order: total,

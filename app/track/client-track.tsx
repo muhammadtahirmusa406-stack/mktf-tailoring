@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -17,11 +17,11 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
   }, [order?.order_reference]);
 
   const steps = [
-    { key: 'CUTTING', label: 'Cutting Table', icon: '✂️' },
-    { key: 'EMBROIDERY', label: 'Embroidery Unit', icon: '🧵' },
-    { key: 'SEWING', label: 'Tailoring & Stitch', icon: '🪡' },
-    { key: 'READY FOR PICKUP', label: 'Ready for Pickup', icon: '✨' },
-    { key: 'COMPLETED', label: 'Handover Completed', icon: '📦' },
+    { key: 'CUTTING', label: 'Cutting Table', icon: '??' },
+    { key: 'EMBROIDERY', label: 'Embroidery Unit', icon: '??' },
+    { key: 'SEWING', label: 'Tailoring & Stitch', icon: '??' },
+    { key: 'READY FOR PICKUP', label: 'Ready for Pickup', icon: '?' },
+    { key: 'COMPLETED', label: 'Handover Completed', icon: '??' },
   ];
 
   const getStepIndex = (status: string) => {
@@ -68,7 +68,7 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
         {/* Top Header */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold uppercase tracking-wider">
-            <span>●</span> Live Atelier Garment Tracker
+            <span>?</span> Live Atelier Garment Tracker
           </div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight">Track Your Bespoke Order</h1>
           <p className="text-sm text-slate-400">
@@ -89,13 +89,13 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
             type="submit"
             className="absolute right-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition shadow-md"
           >
-            Track 🔍
+            Track ??
           </button>
         </form>
 
         {searched && !order && (
           <div className="p-8 text-center rounded-2xl bg-slate-900/80 border border-rose-500/20 text-slate-300">
-            <span className="text-3xl mb-2 block">🔍</span>
+            <span className="text-3xl mb-2 block">??</span>
             <p className="font-bold text-rose-400">No active tailoring order found</p>
             <p className="text-xs text-slate-400 mt-1">Please double check your reference code or phone number.</p>
           </div>
@@ -115,7 +115,7 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
                       onClick={copyLink}
                       className="px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 border border-slate-700"
                     >
-                      {copied ? '✓ Copied' : '📋 Copy Link'}
+                      {copied ? '? Copied' : '?? Copy Link'}
                     </button>
                   </div>
                 </div>
@@ -126,31 +126,56 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
                 </div>
               </div>
 
-              {/* Garment Design Preview with Fullscreen Lightbox Trigger */}
-              {order.design_image_url && (
-                <div className="mt-4 pt-2 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      onClick={() => setLightboxImg({ src: order.design_image_url, title: order.design_name || 'Design Reference' })}
-                      className="cursor-pointer relative group rounded-xl overflow-hidden border border-slate-700 w-16 h-16 flex-shrink-0"
-                    >
-                      <img src={order.design_image_url} alt="Style" className="w-full h-full object-cover group-hover:scale-105 transition" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs">
-                        🔍
+                              {/* Garment Cut & Embroidery Previews with Fullscreen Lightbox */}
+                {(order.sewing_style_image_url || order.design_image_url) && (
+                  <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center gap-4">
+                    {order.sewing_style_image_url && (
+                      <div className="flex items-center gap-3">
+                        <div
+                          onClick={() => setLightboxImg({ src: order.sewing_style_image_url, title: order.sewing_style_name_at_order || 'Sewing Cut' })}
+                          className="cursor-pointer relative group rounded-xl overflow-hidden border border-slate-700 w-14 h-14 flex-shrink-0 bg-slate-900"
+                        >
+                          <img src={order.sewing_style_image_url} alt="Sewing Cut" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                          <span className="absolute top-0 left-0 bg-slate-900/90 text-[8px] font-bold text-slate-300 px-1 rounded-br">CUT</span>
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs">??</div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-200">{order.sewing_style_name_at_order || 'Garment Cut'}</p>
+                          <button
+                            type="button"
+                            onClick={() => setLightboxImg({ src: order.sewing_style_image_url, title: order.sewing_style_name_at_order || 'Sewing Cut' })}
+                            className="text-[11px] text-amber-400 hover:underline font-semibold"
+                          >
+                            View cut photo
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-200">{order.design_name || 'Custom Bespoke Stitch'}</p>
-                      <button
-                        onClick={() => setLightboxImg({ src: order.design_image_url, title: order.design_name || 'Design Reference' })}
-                        className="text-[11px] text-amber-400 hover:underline font-semibold"
-                      >
-                        Click to view full photo
-                      </button>
-                    </div>
+                    )}
+
+                    {order.design_image_url && (
+                      <div className="flex items-center gap-3">
+                        <div
+                          onClick={() => setLightboxImg({ src: order.design_image_url, title: order.design_name || order.design_reference_at_order || 'Design' })}
+                          className="cursor-pointer relative group rounded-xl overflow-hidden border border-amber-500/40 w-14 h-14 flex-shrink-0 bg-slate-900"
+                        >
+                          <img src={order.design_image_url} alt="Embroidery Design" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                          <span className="absolute top-0 left-0 bg-amber-500 text-[8px] font-bold text-slate-950 px-1 rounded-br">ART</span>
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs">??</div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-200">{order.design_name || order.design_reference_at_order || 'Embroidery Design'}</p>
+                          <button
+                            type="button"
+                            onClick={() => setLightboxImg({ src: order.design_image_url, title: order.design_name || order.design_reference_at_order || 'Design' })}
+                            className="text-[11px] text-amber-400 hover:underline font-semibold"
+                          >
+                            View embroidery photo
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Progress Stepper */}
               <div className="mt-8">
@@ -177,7 +202,7 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
                               : 'bg-slate-900 border-slate-700 text-slate-500'
                           }`}
                         >
-                          {isDone && !isCurrent ? '✓' : st.icon}
+                          {isDone && !isCurrent ? '?' : st.icon}
                         </div>
                         <span
                           className={`text-[10px] sm:text-xs font-bold mt-2 text-center max-w-[70px] ${
@@ -200,35 +225,35 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
                   <p className="text-[11px] text-slate-500 uppercase font-bold">Total Bill</p>
-                  <p className="text-xl font-black text-white mt-1">₦{totalPrice.toLocaleString()}</p>
+                  <p className="text-xl font-black text-white mt-1">?{totalPrice.toLocaleString()}</p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
                   <p className="text-[11px] text-slate-500 uppercase font-bold">Deposit Settled</p>
-                  <p className="text-xl font-black text-emerald-400 mt-1">₦{amountPaid.toLocaleString()}</p>
+                  <p className="text-xl font-black text-emerald-400 mt-1">?{amountPaid.toLocaleString()}</p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
                   <p className="text-[11px] text-slate-500 uppercase font-bold">Balance Remaining</p>
                   <p className={`text-xl font-black mt-1 ${isFullyPaid ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    ₦{remainingBalance.toLocaleString()}
+                    ?{remainingBalance.toLocaleString()}
                   </p>
                 </div>
               </div>
 
               {!isFullyPaid ? (
                 <div className="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3">
-                  <span className="text-xl">🔒</span>
+                  <span className="text-xl">??</span>
                   <div>
                     <h4 className="text-xs font-bold text-rose-300 uppercase tracking-wide">Financial Delivery Policy Active</h4>
                     <p className="text-xs text-rose-200/90 mt-0.5 leading-relaxed">
-                      Garment handover requires the balance of <strong className="text-white">₦{remainingBalance.toLocaleString()}</strong> to be paid in full at the branch cashier or via mobile transfer upon pickup.
+                      Garment handover requires the balance of <strong className="text-white">?{remainingBalance.toLocaleString()}</strong> to be paid in full at the branch cashier or via mobile transfer upon pickup.
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="mt-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3">
-                  <span className="text-xl">✅</span>
+                  <span className="text-xl">?</span>
                   <div>
                     <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wide">100% Fully Settled</h4>
                     <p className="text-xs text-emerald-300 mt-0.5">Your order is cleared for immediate pickup once completed by the workshop floor.</p>
@@ -250,7 +275,7 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
                     target="_blank"
                     className="inline-block text-xs font-bold text-amber-400 hover:underline"
                   >
-                    View Official Printable Job Slip ↗
+                    View Official Printable Job Slip ?
                   </Link>
                 </div>
               </div>

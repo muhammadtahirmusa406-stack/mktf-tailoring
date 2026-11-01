@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -93,17 +93,35 @@ export default function ShopFloorClient({ initialOrders, shopName, shopId }: any
                     <p className="text-xs text-slate-400 font-mono mt-0.5">{ord.customer_phone}</p>
                   </div>
 
-                  {ord.design_image_url && (
-                    <div
-                      onClick={() => setLightboxImg({ src: ord.design_image_url, title: `${ord.customer_name} - ${ord.design_name || 'Design'}` })}
-                      className="cursor-pointer relative group w-12 h-12 rounded-lg overflow-hidden border border-slate-700 flex-shrink-0"
-                    >
-                      <img src={ord.design_image_url} alt="Style" className="w-full h-full object-cover group-hover:scale-105 transition" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-[10px]">
-                        🔍
+                  {/* Style Cut & Embroidery Design Previews */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {ord.sewing_style_image_url && (
+                      <div
+                        onClick={() => setLightboxImg({ src: ord.sewing_style_image_url, title: `${ord.customer_name} - Style: ${ord.sewing_style_name_at_order || 'Cut'}` })}
+                        className="cursor-pointer relative group w-12 h-12 rounded-lg overflow-hidden border border-slate-700 bg-slate-950"
+                        title="View Garment Cut"
+                      >
+                        <img src={ord.sewing_style_image_url} alt="Cut" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                        <span className="absolute top-0 left-0 bg-slate-900/80 text-[8px] font-bold text-slate-300 px-1 rounded-br">CUT</span>
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-[10px]">
+                          ??
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                    {ord.design_image_url && (
+                      <div
+                        onClick={() => setLightboxImg({ src: ord.design_image_url, title: `${ord.customer_name} - Design: ${ord.design_name_at_order || ord.design_reference_at_order || 'Artwork'}` })}
+                        className="cursor-pointer relative group w-12 h-12 rounded-lg overflow-hidden border border-amber-500/40 bg-slate-950"
+                        title="View Embroidery Design"
+                      >
+                        <img src={ord.design_image_url} alt="Design" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                        <span className="absolute top-0 left-0 bg-amber-500/90 text-[8px] font-bold text-slate-950 px-1 rounded-br">ART</span>
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-[10px]">
+                          ??
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Measurements Summary Chips */}
@@ -126,7 +144,7 @@ export default function ShopFloorClient({ initialOrders, shopName, shopId }: any
               <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
                 <span className="text-slate-400">Balance:</span>
                 <span className={`font-bold ${isPaid ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {isPaid ? '✓ Fully Settled' : `₦${balance.toLocaleString()} Due`}
+                  {isPaid ? '✓ Fully Settled' : `?${balance.toLocaleString()} Due`}
                 </span>
               </div>
 
@@ -146,7 +164,7 @@ export default function ShopFloorClient({ initialOrders, shopName, shopId }: any
                     onClick={() => handleStageChange(ord.id, nextStage)}
                     className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold text-center transition shadow-sm"
                   >
-                    {loadingId === ord.id ? 'Saving...' : `Advance → ${nextStage}`}
+                    {loadingId === ord.id ? 'Saving...' : `Advance ? ${nextStage}`}
                   </button>
                 ) : (
                   <span className="px-3 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 text-xs font-bold text-center border border-emerald-500/20">

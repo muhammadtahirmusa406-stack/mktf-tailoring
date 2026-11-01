@@ -32,11 +32,12 @@ export default function OrderCatalogClient({
   // Customer Contact (Step 3 - Optional)
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [previewItem, setPreviewItem] = useState<{ url: string; title: string; price?: number } | null>(null);
 
   // 4. Custom Finishing Preferences (Optional)
-  const [neckStyle, setNeckStyle] = useState("Tailor’s Best Choice (Default)");
-  const [pocketStyle, setPocketStyle] = useState("Tailor’s Best Choice (Default)");
-  const [cuffStyle, setCuffStyle] = useState("Tailor’s Best Choice (Default)");
+  const [neckStyle, setNeckStyle] = useState("Tailor's Best Choice (Default)");
+  const [pocketStyle, setPocketStyle] = useState("Tailor's Best Choice (Default)");
+  const [cuffStyle, setCuffStyle] = useState("Tailor's Best Choice (Default)");
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -97,10 +98,12 @@ export default function OrderCatalogClient({
       const res = await createNewOrderAction({
         sewingStyleId: selectedStyle.id,
         sewingStyleName: selectedStyle.name,
+          sewingStyleImageUrl: selectedStyle?.image_url || null,
         sewingFee: stylePrice,
         designName: selectedDesign?.name || 'Standard Artwork',
         designCode: selectedDesign?.code || 'EMB-001',
         embroideryFee: designPrice,
+          designImageUrl: selectedDesign?.image_url || null,
         paymentPlan,
         customerName: customerName.trim() || 'Walk-in Client',
         customerPhone: customerPhone.trim() || 'N/A',
@@ -124,7 +127,7 @@ export default function OrderCatalogClient({
         .join('\n');
 
             const formatChoice = (val: string) => {
-        if (!val || val.includes("Tailor’s Best Choice") || val.includes("Tailor's Best Choice")) {
+        if (!val || val.includes("Tailor's Best Choice") || val.includes("Tailor's Best Choice")) {
           return "Tailor's Best Choice (Zabin Tela)";
         }
         return val;
@@ -231,7 +234,33 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
                         boxShadow: isSelected ? '0 4px 12px rgba(79, 70, 229, 0.15)' : 'none',
                       }}
                     >
-                      <div style={{ height: '140px', background: '#f8fafc' }}>
+                      <div style={{ height: '140px', background: '#f8fafc', position: 'relative' }}>
+    {style.image_url && (
+      <button
+        type="button"
+        title="View Fullscreen"
+        onClick={(e) => {
+          e.stopPropagation();
+          setPreviewItem({ url: style.image_url, title: style.name, price: charge });
+        }}
+        style={{
+          position: 'absolute',
+          top: '6px',
+          right: '6px',
+          background: 'rgba(15, 23, 42, 0.75)',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '8px',
+          padding: '4px 7px',
+          fontSize: '11px',
+          cursor: 'pointer',
+          zIndex: 10,
+          backdropFilter: 'blur(4px)'
+        }}
+      >
+        🔍 Zoom
+      </button>
+    )}
                         {style.image_url ? (
                           <img src={style.image_url} alt={style.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
@@ -272,7 +301,33 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
                         boxShadow: isSelected ? '0 4px 12px rgba(79, 70, 229, 0.15)' : 'none',
                       }}
                     >
-                      <div style={{ height: '120px', background: '#f8fafc' }}>
+                      <div style={{ height: '120px', background: '#f8fafc', position: 'relative' }}>
+    {ds.image_url && (
+      <button
+        type="button"
+        title="View Fullscreen"
+        onClick={(e) => {
+          e.stopPropagation();
+          setPreviewItem({ url: ds.image_url, title: ds.name, price: fee });
+        }}
+        style={{
+          position: 'absolute',
+          top: '6px',
+          right: '6px',
+          background: 'rgba(15, 23, 42, 0.75)',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '8px',
+          padding: '4px 7px',
+          fontSize: '11px',
+          cursor: 'pointer',
+          zIndex: 10,
+          backdropFilter: 'blur(4px)'
+        }}
+      >
+        🔍 Zoom
+      </button>
+    )}
                         {ds.image_url ? (
                           <img src={ds.image_url} alt={ds.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
@@ -467,7 +522,7 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
           <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '1.2rem' }}>👔</span>
+                <span style={{ fontSize: '1.2rem' }}>ًں‘”</span>
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>
                   4. Custom Finishing Preferences (Optional)
                 </h2>
@@ -489,7 +544,7 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    "Tailor’s Best Choice (Default)",
+                    "Tailor's Best Choice (Default)",
                     "Mandarin / Nehru Collar",
                     "Round Neck (Kayan Koli)",
                     "Traditional Open Kufta",
@@ -535,7 +590,7 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    "Tailor’s Best Choice (Default)",
+                    "Tailor's Best Choice (Default)",
                     "Single Chest Pocket + Slit",
                     "Concealed Invisible Side Slits Only",
                     "Dual Lower Front Pockets",
@@ -581,7 +636,7 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    "Tailor’s Best Choice (Default)",
+                    "Tailor's Best Choice (Default)",
                     "Open Straight Sleeve",
                     "Button Slit Cuff",
                     "French Cuff (Cufflinks ready)",
@@ -781,6 +836,78 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
 
         </section>
       )}
-    </div>
+    
+      {/* Fullscreen Preview Lightbox Modal */}
+      {previewItem && (
+        <div
+          onClick={() => setPreviewItem(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(2, 6, 23, 0.88)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              background: '#0f172a',
+              borderRadius: '20px',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              border: '1px solid #334155',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid #1e293b' }}>
+              <div>
+                <h3 style={{ color: '#fff', fontWeight: 800, fontSize: '1rem', margin: 0 }}>{previewItem.title}</h3>
+                {previewItem.price !== undefined && (
+                  <span style={{ color: '#38bdf8', fontSize: '0.85rem', fontWeight: 700 }}>₦{previewItem.price.toLocaleString()}</span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewItem(null)}
+                style={{
+                  background: '#1e293b',
+                  color: '#94a3b8',
+                  border: '1px solid #334155',
+                  borderRadius: '10px',
+                  padding: '6px 12px',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+            <div style={{ padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <img
+                src={previewItem.url}
+                alt={previewItem.title}
+                style={{
+                  maxWidth: '82vw',
+                  maxHeight: '72vh',
+                  objectFit: 'contain',
+                  borderRadius: '12px',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+  
+</div>
   );
 }

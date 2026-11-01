@@ -80,7 +80,7 @@ export default async function BranchFloorPage({
           </div>
 
           <div className="flex items-center gap-3">
-            {isAdmin && (
+            {shops.length > 0 && (
               <form method="GET" action="/staff/branch-floor" className="flex items-center gap-2">
                 <span className="text-xs text-slate-400 font-bold hidden sm:inline">Switch Floor:</span>
                 <select

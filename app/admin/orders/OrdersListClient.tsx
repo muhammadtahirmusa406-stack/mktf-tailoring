@@ -1,7 +1,8 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
+import ImageLightboxModal from '@/components/ui/image-lightbox-modal';
 import {
   updateOrderStatusAction,
   updateOrderStatusFormAction,
@@ -28,17 +29,19 @@ type OrderItem = {
   fabric_reference_at_order: string | null;
   design_reference_at_order: string | null;
   sewing_style_name_at_order: string | null;
+  sewing_style_image_url?: string | null;
+  design_image_url?: string | null;
   total_price_at_order: number | null;
   measurements: Record<string, unknown> | null;
   created_at: string;
 };
 
 const NEXT_STAGE: Record<string, { label: string; nextStatus: string; isGreen?: boolean }> = {
-  'NEW': { label: 'Start Production â†’', nextStatus: 'IN PRODUCTION' },
-  'CONFIRMED': { label: 'Start Production â†’', nextStatus: 'IN PRODUCTION' },
-  'ASSIGNED': { label: 'Start Production â†’', nextStatus: 'IN PRODUCTION' },
-  'IN PRODUCTION': { label: 'âœ“ Mark Ready for Pickup', nextStatus: 'READY', isGreen: true },
-  'READY': { label: 'ًں“¦ Mark Delivered', nextStatus: 'DELIVERED', isGreen: true },
+  'NEW': { label: 'Start Production ط£آ¢أ¢â‚¬آ أ¢â‚¬â„¢', nextStatus: 'IN PRODUCTION' },
+  'CONFIRMED': { label: 'Start Production ط£آ¢أ¢â‚¬آ أ¢â‚¬â„¢', nextStatus: 'IN PRODUCTION' },
+  'ASSIGNED': { label: 'Start Production ط£آ¢أ¢â‚¬آ أ¢â‚¬â„¢', nextStatus: 'IN PRODUCTION' },
+  'IN PRODUCTION': { label: 'ط£آ¢ط¥â€œأ¢â‚¬إ“ Mark Ready for Pickup', nextStatus: 'READY', isGreen: true },
+  'READY': { label: 'ط¸â€¹ط¹ط›أ¢â‚¬إ“ط¢آ¦ Mark Delivered', nextStatus: 'DELIVERED', isGreen: true },
 };
 
 const ALL_STATUSES = ['NEW', 'CONFIRMED', 'ASSIGNED', 'IN PRODUCTION', 'READY', 'DELIVERED'];
@@ -50,6 +53,8 @@ export default function OrdersListClient({
   orders: OrderItem[];
   childShops: ChildShop[];
 }) {
+  // Lightbox modal state
+  const [lightboxImg, setLightboxImg] = useState<{ src: string; title: string } | null>(null);
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
 
   const toggleSelect = (ref: string) => {
@@ -210,7 +215,7 @@ export default function OrdersListClient({
                         letterSpacing: '0.04em',
                       }}
                     >
-                      â—ڈ {o.status}
+                      ط£آ¢أ¢â‚¬â€‌ط¹ث† {o.status}
                     </span>
                   </div>
 
@@ -248,16 +253,44 @@ export default function OrdersListClient({
                     <div style={{ color: '#64748b', fontSize: '0.8rem' }}>Ref: {o.fabric_reference_at_order || 'N/A'}</div>
                   </div>
 
-                  <div>
+                                    <div>
                     <span style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em' }}>STYLE & EMBROIDERY</span>
                     <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '2px' }}>{o.sewing_style_name_at_order || 'Standard Cut'}</div>
                     <div style={{ color: '#64748b', fontSize: '0.8rem' }}>Embr: {o.design_reference_at_order || 'None'}</div>
+
+                    {/* Visual Cut & Embroidery Inspection */}
+                    {(o.sewing_style_image_url || o.design_image_url) && (
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                        {o.sewing_style_image_url && (
+                          <button
+                            type="button"
+                            onClick={() => setLightboxImg({ src: o.sewing_style_image_url!, title: `${o.customer_name || 'Customer'} - Cut: ${o.sewing_style_name_at_order || 'Style'}` })}
+                            style={{ position: 'relative', width: '38px', height: '38px', borderRadius: '6px', overflow: 'hidden', border: '1px solid #cbd5e1', cursor: 'pointer', padding: 0, background: '#0f172a' }}
+                            title="Inspect Garment Cut"
+                          >
+                            <img src={o.sewing_style_image_url} alt="Cut" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(15, 23, 42, 0.85)', color: '#fff', fontSize: '8px', fontWeight: 700, textAlign: 'center' }}>CUT</span>
+                          </button>
+                        )}
+                        {o.design_image_url && (
+                          <button
+                            type="button"
+                            onClick={() => setLightboxImg({ src: o.design_image_url!, title: `${o.customer_name || 'Customer'} - Design: ${o.design_reference_at_order || 'Artwork'}` })}
+                            style={{ position: 'relative', width: '38px', height: '38px', borderRadius: '6px', overflow: 'hidden', border: '1px solid #f59e0b', cursor: 'pointer', padding: 0, background: '#0f172a' }}
+                            title="Inspect Embroidery Design"
+                          >
+                            <img src={o.design_image_url} alt="Design" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(245, 158, 11, 0.95)', color: '#0f172a', fontSize: '8px', fontWeight: 800, textAlign: 'center' }}>ART</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div>
                     <span style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em' }}>FINANCIAL VALUE</span>
                     <div style={{ fontWeight: 800, color: '#16a34a', fontSize: '1.05rem', marginTop: '2px' }}>
-                      {o.total_price_at_order ? `â‚¦${Number(o.total_price_at_order).toLocaleString()}` : 'Custom Quote'}
+                      {o.total_price_at_order ? `ط£آ¢أ¢â‚¬ع‘ط¢آ¦${Number(o.total_price_at_order).toLocaleString()}` : 'Custom Quote'}
                     </div>
                   </div>
                 </div>
@@ -310,7 +343,7 @@ export default function OrdersListClient({
                       <option value="UNASSIGNED">Main HQ (In-House)</option>
                       {childShops.map((s) => (
                         <option key={s.id} value={s.id}>
-                          ًںڈ¢ {s.name} ({s.location || 'Branch'})
+                          ط¸â€¹ط¹ط›ط¹ث†ط¢آ¢ {s.name} ({s.location || 'Branch'})
                         </option>
                       ))}
                     </select>
@@ -345,6 +378,13 @@ export default function OrdersListClient({
           })}
         </div>
       )}
-    </div>
+      {lightboxImg && (
+    <ImageLightboxModal
+      src={lightboxImg.src}
+      alt={lightboxImg.title}
+      onClose={() => setLightboxImg(null)}
+    />
+  )}
+</div>
   );
 }
