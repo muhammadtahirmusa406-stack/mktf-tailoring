@@ -225,31 +225,46 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
                   <p className="text-[11px] text-slate-500 uppercase font-bold">Total Bill</p>
-                  <p className="text-xl font-black text-white mt-1">?{totalPrice.toLocaleString()}</p>
+                  <p className="text-xl font-black text-white mt-1">₦{totalPrice.toLocaleString()}</p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
                   <p className="text-[11px] text-slate-500 uppercase font-bold">Deposit Settled</p>
-                  <p className="text-xl font-black text-emerald-400 mt-1">?{amountPaid.toLocaleString()}</p>
+                  <p className="text-xl font-black text-emerald-400 mt-1">₦{amountPaid.toLocaleString()}</p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
                   <p className="text-[11px] text-slate-500 uppercase font-bold">Balance Remaining</p>
                   <p className={`text-xl font-black mt-1 ${isFullyPaid ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    ?{remainingBalance.toLocaleString()}
+                    ₦{remainingBalance.toLocaleString()}
                   </p>
                 </div>
               </div>
 
-              {!isFullyPaid ? (
-                <div className="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3">
-                  <span className="text-xl">??</span>
-                  <div>
-                    <h4 className="text-xs font-bold text-rose-300 uppercase tracking-wide">Financial Delivery Policy Active</h4>
-                    <p className="text-xs text-rose-200/90 mt-0.5 leading-relaxed">
-                      Garment handover requires the balance of <strong className="text-white">?{remainingBalance.toLocaleString()}</strong> to be paid in full at the branch cashier or via mobile transfer upon pickup.
-                    </p>
+                            {!isFullyPaid ? (
+                <div className="mt-4 p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">⚠️</span>
+                    <div>
+                      <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider">Balance Payment Required for Release</h4>
+                      <p className="text-xs text-amber-200/90 mt-1 leading-relaxed">
+                        Your outfit balance of <strong className="text-white font-mono font-bold">₦{remainingBalance.toLocaleString()}</strong> is outstanding. Transfer to:
+                      </p>
+                      <div className="mt-2 p-2.5 rounded-xl bg-slate-950/70 border border-amber-500/20 text-xs font-mono text-slate-200">
+                        <span className="text-amber-400 font-bold">OPay</span> • 8030635560 • Abdulrahman Aliyu
+                      </div>
+                    </div>
                   </div>
+                  <a
+                    href={`https://wa.me/2348030635560?text=${encodeURIComponent(
+                      `Hello Admin, I have settled the balance of ₦${remainingBalance.toLocaleString()} for my order #${order.order_reference}. Here is my payment receipt.`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-md"
+                  >
+                    <span>💬</span> Send Payment Receipt via WhatsApp →
+                  </a>
                 </div>
               ) : (
                 <div className="mt-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3">

@@ -242,3 +242,39 @@ export async function bulkUpdateOrderStatusAction(formData: FormData): Promise<v
   revalidatePath('/admin');
   revalidatePath('/track');
 }
+
+export async function confirmFullPaymentAction(orderId: string) {
+  if (!orderId) {
+    return { success: false, error: 'Order reference is required.' };
+  }
+
+  const supabase = await createClient();
+
+  const { data: order, error: fetchError } = await supabase
+    .from('orders')
+    .select('id, total_price')
+    .or(`id.eq.${orderId},order_reference.eq.${orderId}`)
+    .single();
+
+  if (fetchError || !order) {
+    return { success: false, error: 'Order not found.' };
+  }
+
+  const { error: updateError } = await supabase
+    .from('orders')
+    .update({
+      amount_paid: order.total_price,
+      payment_status: '100%_FULLY_PAID',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', order.id);
+
+  if (updateError) {
+    return { success: false, error: updateError.message };
+  }
+
+  revalidatePath('/admin/orders');
+  revalidatePath('/admin');
+  revalidatePath('/track');
+  return { success: true };
+}

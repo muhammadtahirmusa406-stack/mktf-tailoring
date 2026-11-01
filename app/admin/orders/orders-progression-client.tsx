@@ -56,6 +56,29 @@ export default function OrdersProgressionClient({
     }
   };
 
+    const handleConfirmPayment = async (orderId: string, totalPrice: number) => {
+    if (!confirm('Confirm receipt of full payment balance for this order?')) return;
+    setUpdatingId(orderId);
+    try {
+      const res = await confirmFinalPaymentAction(orderId, totalPrice);
+      if (res.success) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === orderId
+              ? { ...o, amount_paid: totalPrice, payment_status: '100%_FULLY_PAID' }
+              : o
+          )
+        );
+      } else {
+        alert(res.error || 'Failed to update payment status');
+      }
+    } catch (e: any) {
+      alert(e.message || 'An error occurred while confirming payment');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const handleStatusChange = async (orderId: string, nextStatus: string) => {
     setUpdatingId(orderId);
     const res = await updateOrderStatusAction(orderId, nextStatus);
@@ -238,13 +261,26 @@ export default function OrdersProgressionClient({
 
                 {/* Actions */}
                 <div className="grid grid-cols-2 gap-2 pt-1">
-                  <Link
+                  <div className="flex items-center gap-2">
+                      <Link
                     href={`/admin/orders/${ord.id}/print`}
                     target="_blank"
                     className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold text-center border border-slate-700 transition"
                   >
                     🖨️ Job Slip
                   </Link>
+                      {balance > 0 && (
+                        <button
+                          type="button"
+                          disabled={updatingId === ord.id}
+                          onClick={() => handleConfirmPayment(ord.id, Number(ord.total_price))}
+                          className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-md disabled:opacity-50"
+                          title="Confirm customer balance payment"
+                        >
+                          {updatingId === ord.id ? '...' : '💰 Settle'}
+                        </button>
+                      )}
+                    </div>
 
                   {nextStage ? (
                     <button
