@@ -522,7 +522,7 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
           <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '1.2rem' }}>ًں‘”</span>
+                <span style={{ fontSize: "1.2rem" }}>✂️</span>
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>
                   4. Custom Finishing Preferences (Optional)
                 </h2>
