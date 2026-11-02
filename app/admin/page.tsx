@@ -1,3 +1,5 @@
+import OutstandingBalanceCard from './outstanding-balance-card';
+import TotalCashCard from './total-cash-card';
 import SignOutButton from '@/components/SignOutButton';
 ﻿import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -88,24 +90,9 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Financial Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
-            <span className="text-[10px] uppercase font-bold text-slate-400">Total Booked Volume</span>
-            <p className="text-2xl font-black text-white mt-1">₦{totalRevenue.toLocaleString()}</p>
-            <span className="text-[11px] text-slate-500 mt-1 block">{totalOrdersCount} orders total</span>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
-            <span className="text-[10px] uppercase font-bold text-emerald-400">Total Cash Collected</span>
-            <p className="text-2xl font-black text-emerald-400 mt-1">₦{totalCollected.toLocaleString()}</p>
-            <span className="text-[11px] text-slate-500 mt-1 block">Deposits & fully settled</span>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
-            <span className="text-[10px] uppercase font-bold text-amber-400">Outstanding Balances</span>
-            <p className="text-2xl font-black text-amber-400 mt-1">₦{totalOutstanding.toLocaleString()}</p>
-            <span className="text-[11px] text-slate-500 mt-1 block">Locked by delivery gate</span>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <TotalCashCard amount={totalCollected} />
+          <OutstandingBalanceCard amount={totalOutstanding} />
         </div>
 
         {/* Production Floor Throughput */}
