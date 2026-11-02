@@ -8,6 +8,7 @@ import {
   markStudentDoneAction,
   flagStudentReturnAction,
   resolveStudentReturnAction,
+  updateSchoolStudentAction,
 } from '../actions';
 
 interface Student {
@@ -39,6 +40,75 @@ export default function SchoolWorkspaceClient({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [targetShopId, setTargetShopId] = useState('');
   const [loadingAction, setLoadingAction] = useState(false);
+
+  // Edit Student Modal State
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editSets, setEditSets] = useState(2);
+  const [editKafada, setEditKafada] = useState('');
+  const [editHannu, setEditHannu] = useState('');
+  const [editRiga, setEditRiga] = useState('');
+  const [editWando, setEditWando] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+
+  const openEditModal = (st: Student) => {
+    setEditingStudent(st);
+    setEditName(st.student_name);
+    setEditSets(st.sets_count || 2);
+    setEditKafada(st.kafada ? String(st.kafada) : '');
+    setEditHannu(st.hannu ? String(st.hannu) : '');
+    setEditRiga(st.riga ? String(st.riga) : '');
+    setEditWando(st.wando ? String(st.wando) : '');
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    if (!editName.trim() || !editKafada || !editHannu || !editRiga || !editWando) {
+      alert('Please fill student name and all 4 measurements.');
+      return;
+    }
+
+    setEditLoading(true);
+    try {
+      const res = await updateSchoolStudentAction({
+        studentId: editingStudent.id,
+        projectId: project.id,
+        studentName: editName.trim(),
+        setsCount: Number(editSets) || 2,
+        kafada: Number(editKafada),
+        hannu: Number(editHannu),
+        riga: Number(editRiga),
+        wando: Number(editWando),
+      });
+
+      if (!res.success) {
+        alert(res.error || 'Failed to update student');
+      } else {
+        setStudents((prev) =>
+          prev.map((s) =>
+            s.id === editingStudent.id
+              ? {
+                  ...s,
+                  student_name: editName.trim(),
+                  sets_count: Number(editSets) || 2,
+                  kafada: Number(editKafada),
+                  hannu: Number(editHannu),
+                  riga: Number(editRiga),
+                  wando: Number(editWando),
+                }
+              : s
+          )
+        );
+        setEditingStudent(null);
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error updating student');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
 
   // Fast Intake State
   const [studentName, setStudentName] = useState('');
@@ -546,6 +616,15 @@ export default function SchoolWorkspaceClient({
                     </td>
                     <td className="p-3 text-right font-sans">
                       <div className="flex items-center justify-end gap-1.5">
+
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(st)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 font-bold text-[11px] transition flex items-center gap-1"
+                            title="Edit measurements"
+                          >
+                            ✏️ Edit
+                          </button>
                         {st.status === 'PENDING' && (
                           <button
                             disabled={loadingAction}
@@ -592,6 +671,119 @@ export default function SchoolWorkspaceClient({
           </table>
         </div>
       </div>
+
+    
+      {/* Edit Student Modal */}
+      {editingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-white">Edit Student Measurements</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Correct details or body dimensions for this student.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingStudent(null)}
+                className="text-slate-400 hover:text-white text-lg p-1 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Student Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Sets Count</label>
+                  <select
+                    value={editSets}
+                    onChange={(e) => setEditSets(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400"
+                  >
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>{n} Set{n > 1 ? 's' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2.5 pt-1">
+                <div>
+                  <label className="block text-[10px] font-bold text-amber-300 uppercase mb-1">Kafada</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    required
+                    value={editKafada}
+                    onChange={(e) => setEditKafada(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-amber-300 uppercase mb-1">Hannu</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    required
+                    value={editHannu}
+                    onChange={(e) => setEditHannu(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-amber-300 uppercase mb-1">Riga</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    required
+                    value={editRiga}
+                    onChange={(e) => setEditRiga(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-amber-300 uppercase mb-1">Wando</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    required
+                    value={editWando}
+                    onChange={(e) => setEditWando(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingStudent(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold transition shadow-sm disabled:opacity-50"
+                >
+                  {editLoading ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

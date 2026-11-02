@@ -269,3 +269,53 @@ export async function resolveStudentReturnAction(studentId: string, projectId: s
   revalidatePath(`/admin/school-projects/${projectId}`);
   return { success: true };
 }
+
+
+// 7. Update Student Details / Measurements
+export async function updateSchoolStudentAction(payload: {
+  studentId: string;
+  projectId: string;
+  studentName: string;
+  setsCount: number;
+  kafada: number;
+  hannu: number;
+  riga: number;
+  wando: number;
+}) {
+  try {
+    const { studentId, projectId, studentName, setsCount, kafada, hannu, riga, wando } = payload;
+
+    if (!studentId || !studentName?.trim()) {
+      return { success: false, error: 'Student ID and name are required.' };
+    }
+
+    if (!kafada || !hannu || !riga || !wando) {
+      return { success: false, error: 'All 4 measurements (Kafada, Hannu, Riga, Wando) are required.' };
+    }
+
+    const supabase = await createClient();
+
+    const { error } = await supabase
+      .from('school_students')
+      .update({
+        student_name: studentName.trim(),
+        sets_count: Number(setsCount) || 2,
+        kafada: Number(kafada),
+        hannu: Number(hannu),
+        riga: Number(riga),
+        wando: Number(wando),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', studentId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath(`/admin/school-projects/${projectId}`);
+    revalidatePath(`/admin/school-projects/${projectId}/print`);
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Server error updating student.' };
+  }
+}
