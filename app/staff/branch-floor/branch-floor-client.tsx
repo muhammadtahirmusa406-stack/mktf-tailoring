@@ -18,6 +18,7 @@ export default function BranchFloorClient({
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [lightboxImg, setLightboxImg] = useState<{ src: string; title: string } | null>(null);
 
+  const ACTIVE_STAGES = ['CUTTING', 'EMBROIDERY', 'SEWING', 'READY FOR PICKUP'];
   const STAGES = ['CUTTING', 'EMBROIDERY', 'SEWING', 'READY FOR PICKUP', 'COMPLETED'];
 
   const handleAdvance = async (orderId: string, currentStatus: string) => {
@@ -38,9 +39,12 @@ export default function BranchFloorClient({
     );
   };
 
+  const activeOrders = (orders || []).filter((o: any) => o.status !== 'COMPLETED');
+  const completedOrders = (orders || []).filter((o: any) => o.status === 'COMPLETED');
+
   const filteredOrders = activeFilter === 'ALL'
-    ? (orders || [])
-    : (orders || []).filter((o) => o.status === activeFilter);
+    ? activeOrders
+    : (orders || []).filter((o: any) => o.status === activeFilter);
 
   const displayName = branchName || profile?.branch_name || profile?.shop_name || 'Workshop Floor';
 
@@ -79,7 +83,7 @@ export default function BranchFloorClient({
               : 'bg-slate-900 text-slate-400 hover:text-white'
           }`}
         >
-          All Floor Orders ({(orders || []).length})
+          Active Floor Queue ({activeOrders.length})
         </button>
         {STAGES.map((st) => {
           const count = (orders || []).filter((o) => o.status === st).length;

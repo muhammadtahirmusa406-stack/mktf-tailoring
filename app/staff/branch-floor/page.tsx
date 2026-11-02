@@ -36,14 +36,22 @@ export default async function BranchFloorPage({
 
   const shops = allShops || [];
 
-  // Determine active branch
-  let assignedShopId = resolvedParams?.shopId || profile?.child_shop_id || null;
+  // Determine active branch:
+  // Admins can freely select any shop via searchParams.
+  // Non-admin branch operators are locked strictly to their assigned/owned branch.
+  let assignedShopId: string | null = null;
 
-  if (!assignedShopId) {
+  if (isAdmin) {
+    assignedShopId = resolvedParams?.shopId || profile?.child_shop_id || null;
+    if (!assignedShopId && shops.length > 0) {
+      assignedShopId = shops[0].id;
+    }
+  } else {
+    // Locked for child shop staff: strictly use their profile branch or owned branch
     const ownedShop = shops.find(s => s.owner_profile_id === user.id);
-    if (ownedShop) {
-      assignedShopId = ownedShop.id;
-    } else if (shops.length > 0) {
+    assignedShopId = profile?.child_shop_id || ownedShop?.id || null;
+
+    if (!assignedShopId && shops.length > 0) {
       assignedShopId = shops[0].id;
     }
   }
@@ -80,7 +88,8 @@ export default async function BranchFloorPage({
           </div>
 
           <div className="flex items-center gap-3">
-            {shops.length > 0 && (
+            {/* ONLY Admins can view and switch between workshop branch floors */}
+            {isAdmin && shops.length > 0 && (
               <form method="GET" action="/staff/branch-floor" className="flex items-center gap-2">
                 <span className="text-xs text-slate-400 font-bold hidden sm:inline">Switch Floor:</span>
                 <select
@@ -96,7 +105,7 @@ export default async function BranchFloorPage({
                   ))}
                 </select>
                 <button type="submit" className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700">
-                  Switch 🔁
+                  Switch 🔄
                 </button>
               </form>
             )}
@@ -115,7 +124,8 @@ export default async function BranchFloorPage({
         {/* Client Interactive Floor Grid */}
         {activeShop ? (
           <BranchFloorClient
-            orders={orders} initialOrders={orders}
+            orders={orders}
+            initialOrders={orders}
             branchName={activeShop.name}
             shopId={activeShop.id}
           />

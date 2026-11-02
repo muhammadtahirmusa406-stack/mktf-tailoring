@@ -119,14 +119,25 @@ export default function Navbar({ role }: { role?: string }) {
 
           <nav className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm font-semibold">
             <Link
-              href="/shop/dashboard"
+              href="/staff/branch-floor"
               className={`px-3.5 py-1.5 rounded-lg transition whitespace-nowrap ${
-                currentPath.startsWith('/shop') || currentPath.startsWith('/staff/branch-floor')
+                currentPath === '/staff/branch-floor' || currentPath.startsWith('/shop')
                   ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
               }`}
             >
               🧵 Active Floor Queue
+            </Link>
+
+            <Link
+              href="/staff/school-projects"
+              className={`px-3.5 py-1.5 rounded-lg transition whitespace-nowrap ${
+                currentPath.startsWith('/staff/school-projects')
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+              }`}
+            >
+              🏫 School Projects
             </Link>
 
             <a
@@ -138,13 +149,7 @@ export default function Navbar({ role }: { role?: string }) {
               💬 Contact Admin
             </a>
 
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="ml-1 sm:ml-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 border border-slate-700 font-bold transition text-xs cursor-pointer"
-            >
-              🚪 Sign Out
-            </button>
+            
           </nav>
         </div>
       </header>
@@ -155,6 +160,7 @@ export default function Navbar({ role }: { role?: string }) {
   const adminNavLinks = [
     { href: '/admin', label: '📊 Dashboard' },
     { href: '/admin/orders', label: '📦 Workshop Orders' },
+      { href: '/admin/school-projects', label: '🏫 School Projects' },
     { href: '/admin/shops', label: '🏪 Child Shops' },
     { href: '/admin/catalog', label: '🎨 Catalog' },
     { href: '/staff/branch-floor', label: '🧵 Artisan Floor' },
@@ -203,13 +209,7 @@ export default function Navbar({ role }: { role?: string }) {
             <span className="text-xs">↗</span>
           </Link>
 
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="ml-2 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-rose-950 text-slate-300 hover:text-rose-300 border border-slate-700 font-bold transition text-xs cursor-pointer"
-          >
-            🚪 Sign Out
-          </button>
+          
         </nav>
       </div>
     </header>

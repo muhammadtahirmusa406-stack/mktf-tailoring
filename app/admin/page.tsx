@@ -1,3 +1,4 @@
+import SignOutButton from '@/components/SignOutButton';
 ﻿import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase-server';
@@ -66,6 +67,12 @@ export default async function AdminDashboardPage() {
 
           <div className="flex items-center gap-3">
             <Link
+              href="/admin/school-projects"
+              className="px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold transition flex items-center gap-1.5"
+            >
+              <span>🏫</span> School Contracts
+            </Link>
+            <Link
               href="/admin/orders"
               className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-xs font-bold transition"
             >
@@ -125,7 +132,14 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Quick Operations Links */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-800/80">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-800/80">
+          <Link
+            href="/admin/school-projects"
+            className="p-5 rounded-2xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/40 transition group"
+          >
+            <h4 className="text-sm font-bold text-white group-hover:text-amber-400 transition">School Uniform Contracts →</h4>
+            <p className="text-xs text-slate-400 mt-1">Manage bulk student rosters, 4 manual body dimensions, branch allocation & delivery manifests.</p>
+          </Link>
           <Link
             href="/admin/orders"
             className="p-5 rounded-2xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/40 transition group"
@@ -150,7 +164,13 @@ export default async function AdminDashboardPage() {
             <p className="text-xs text-slate-400 mt-1">Direct live queue for artisans to switch floors and progress garments.</p>
           </Link>
         </div>
-
+        {/* Bottom System Footer */}
+        <div className="pt-8 pb-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <div>
+            <span>MKTF Tailoring Workshop System • Operational Suite</span>
+          </div>
+          <SignOutButton />
+        </div>
       </div>
     </div>
   );
