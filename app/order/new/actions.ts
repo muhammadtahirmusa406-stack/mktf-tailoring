@@ -6,7 +6,7 @@ import crypto from 'crypto';
 export async function checkReturningCustomerAction(phone: string) {
   try {
     const supabase = await createClient();
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
 
     if (!cleanPhone || cleanPhone.length < 8) {
       return { found: false };
@@ -15,18 +15,28 @@ export async function checkReturningCustomerAction(phone: string) {
     const shortPhone = cleanPhone.slice(-9);
 
     const { data, error } = await supabase
-      .from('customer_profiles')
-      .select('*')
-      .ilike('phone_number', `%${shortPhone}%`)
+      .from('orders')
+      .select('id, order_reference, customer_name, customer_phone, sewing_style_id, customer_measurements, created_at')
+      .ilike('customer_phone', `%${shortPhone}%`)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (error || !data) {
+    if (error || !data || !data.customer_measurements) {
       return { found: false };
     }
 
-    return { found: true, profile: data };
+    return {
+      found: true,
+      profile: {
+        orderReference: data.order_reference,
+        customerName: data.customer_name,
+        sewingStyleId: data.sewing_style_id,
+        measurements: data.customer_measurements,
+      },
+    };
   } catch (err) {
+    console.error('Error checking returning customer:', err);
     return { found: false };
   }
 }
@@ -195,5 +205,165 @@ export async function createNewOrderAction(orderData: {
   } catch (err: any) {
     console.error('Fatal order submission error:', err);
     return { success: false, error: err.message || 'Server error occurred while creating order.' };
+  }
+}
+
+export async function lookupCustomerHistory(phone: string) {
+  try {
+    const cleanPhone = (phone || '').replace(/\s+/g, '').trim();
+    if (!cleanPhone || cleanPhone.length < 8) {
+      return { success: false, found: false };
+    }
+
+    const supabase = await createClient();
+    const { data: previousOrder, error } = await supabase
+      .from('orders')
+      .select('id, order_reference, customer_name, customer_phone, sewing_style_id, customer_measurements, created_at')
+      .ilike('customer_phone', `%${cleanPhone}%`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !previousOrder || !previousOrder.customer_measurements) {
+      return { success: false, found: false };
+    }
+
+    return {
+      success: true,
+      found: true,
+      orderReference: previousOrder.order_reference,
+      customerName: previousOrder.customer_name,
+      previousStyleId: previousOrder.sewing_style_id,
+      measurements: previousOrder.customer_measurements,
+    };
+  } catch (err: any) {
+    console.error('Error looking up customer profile:', err);
+    return { success: false, found: false };
+  }
+}
+
+export async function getAtelierSettingsAction() {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('atelier_settings')
+      .select('bank_name, account_number, account_name, is_active')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    if (error || !data) {
+      return {
+        bankName: 'OPay',
+        accountNumber: '8030635560',
+        accountName: 'Abdulrahman Aliyu',
+      };
+    }
+
+    return {
+      bankName: data.bank_name,
+      accountNumber: data.account_number,
+      accountName: data.account_name,
+    };
+  } catch {
+    return {
+      bankName: 'OPay',
+      accountNumber: '8030635560',
+      accountName: 'Abdulrahman Aliyu',
+    };
+  }
+}
+
+export async function updateAtelierSettingsAction(bankName: string, accountNumber: string, accountName: string) {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from('atelier_settings')
+      .upsert({
+        id: 'default',
+        bank_name: bankName,
+        account_number: accountNumber,
+        account_name: accountName,
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function submitOrderWithReceiptAction(formData: FormData) {
+  try {
+    const supabase = await createClient();
+    const orderDataJson = formData.get('orderData') as string;
+    const file = formData.get('receiptFile') as File | null;
+    const verificationDataJson = formData.get('verificationData') as string;
+
+    if (!orderDataJson) {
+      return { success: false, error: 'Missing order details.' };
+    }
+
+    const payload = JSON.parse(orderDataJson);
+    const verification = verificationDataJson ? JSON.parse(verificationDataJson) : null;
+
+    let receiptUrl = '';
+    if (file && typeof file.arrayBuffer === 'function') {
+      const fileExt = file.name.split('.').pop() || 'png';
+      const fileName = `receipt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+      const buffer = Buffer.from(await file.arrayBuffer());
+
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('receipts')
+        .upload(fileName, buffer, {
+          contentType: file.type || 'image/png',
+          upsert: true,
+        });
+
+      if (!uploadErr && uploadData) {
+        const { data: publicUrlData } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(uploadData.path);
+        receiptUrl = publicUrlData.publicUrl;
+      }
+    }
+
+    const orderRef = 'ORD-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    const { data: newOrder, error: insertErr } = await supabase
+      .from('orders')
+      .insert({
+        order_reference: orderRef,
+        customer_name: payload.customerName,
+        customer_phone: payload.customerPhone,
+        sewing_style_id: payload.sewingStyleId,
+        embroidery_design_id: payload.embroideryDesignId || null,
+        customer_measurements: payload.measurements,
+        payment_plan: payload.paymentPlan,
+        total_amount: payload.totalAmount,
+        deposit_amount: payload.amountToPay,
+        payment_status: 'PAID',
+        receipt_url: receiptUrl || null,
+        transaction_reference: verification?.referenceId || null,
+        payment_verification_data: verification || null,
+        order_status: 'CUTTING',
+      })
+      .select('id, order_reference')
+      .single();
+
+    if (insertErr || !newOrder) {
+      console.error('Order insert error:', insertErr);
+      return { success: false, error: insertErr?.message || 'Could not place order.' };
+    }
+
+    return {
+      success: true,
+      orderReference: newOrder.order_reference,
+    };
+  } catch (err: any) {
+    console.error('submitOrderWithReceiptAction error:', err);
+    return { success: false, error: err.message || 'Server error while completing order.' };
   }
 }

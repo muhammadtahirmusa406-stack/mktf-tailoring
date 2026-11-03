@@ -1,9 +1,10 @@
 'use client';
+import { verifyBankReceipt, VerificationResult } from '@/lib/verify-receipt';
 import Image from 'next/image';
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { createNewOrderAction, checkReturningCustomerAction } from './actions';
+import { createNewOrderAction, checkReturningCustomerAction, getAtelierSettingsAction, submitOrderWithReceiptAction } from './actions';
 
 interface OrderCatalogClientProps {
   initialStyles?: any[] | null;
@@ -42,7 +43,153 @@ export default function OrderCatalogClient({
   const [cuffStyle, setCuffStyle] = useState("Tailor's Best Choice (Default)");
 
   const [submitting, setSubmitting] = useState(false);
+  const [checkingCustomer, setCheckingCustomer] = useState(false);
+
+  React.useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await getAtelierSettingsAction();
+        if (res) setBankDetails(res);
+      } catch (e) {
+        console.error('Failed to load atelier bank settings:', e);
+      }
+    }
+    loadSettings();
+  }, []);
+
+  const [returningPromptOpen, setReturningPromptOpen] = useState(false);
+
+  // Bank Transfer & Receipt Verification States
+  const [bankModalOpen, setBankModalOpen] = useState(false);
+  const [bankDetails, setBankDetails] = useState({
+    bankName: 'OPay',
+    accountNumber: '8030635560',
+    accountName: 'Abdulrahman Aliyu',
+  });
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [verifyingReceipt, setVerifyingReceipt] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
+  const [copiedAccount, setCopiedAccount] = useState(false);
+
+  const [returningData, setReturningData] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const handleProceedToStep2 = async () => {
+    if (!customerName.trim() || !customerPhone.trim()) {
+      setErrorMessage('Please enter your full name and phone number to continue.');
+      return;
+    }
+    setErrorMessage('');
+    
+    // Check if customer has prior history
+    setCheckingCustomer(true);
+    try {
+      const res = await checkReturningCustomerAction(customerPhone);
+      if (res && res.found && res.profile && res.profile.measurements) {
+        setReturningData(res.profile);
+        setReturningPromptOpen(true);
+        setCheckingCustomer(false);
+        return;
+      }
+    } catch (err) {
+      console.error('Customer lookup error:', err);
+    }
+    setCheckingCustomer(false);
+    setCurrentStep(2);
+  };
+
+  const handleApplySavedMeasurements = () => {
+    if (returningData && returningData.measurements) {
+      setMeasurements((prev) => ({
+        ...prev,
+        ...returningData.measurements,
+      }));
+    }
+    setReturningPromptOpen(false);
+    setCurrentStep(2);
+  };
+
+  
+  const handleCopyAccount = () => {
+    navigator.clipboard.writeText(bankDetails.accountNumber);
+    setCopiedAccount(true);
+    setTimeout(() => setCopiedAccount(false), 2500);
+  };
+
+  const handleReceiptChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setReceiptFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setReceiptPreview(objectUrl);
+    setVerificationResult(null);
+
+    // Auto-verify with OCR
+    setVerifyingReceipt(true);
+    try {
+      const amountDue = paymentPlan === '50_PERCENT' ? Math.round(totalPrice / 2) : totalPrice;
+      const res = await verifyBankReceipt(
+        file,
+        bankDetails.accountNumber,
+        bankDetails.accountName,
+        amountDue
+      );
+      setVerificationResult(res);
+    } catch (err) {
+      console.error('Verification error:', err);
+    } finally {
+      setVerifyingReceipt(false);
+    }
+  };
+
+  const handleCompleteOrderWithReceipt = async () => {
+    if (!receiptFile) {
+      alert('Please upload your transfer receipt to proceed.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const amountDue = paymentPlan === '50_PERCENT' ? Math.round(totalPrice / 2) : totalPrice;
+      const formData = new FormData();
+      formData.append(
+        'orderData',
+        JSON.stringify({
+          customerName,
+          customerPhone,
+          sewingStyleId: selectedStyle?.id,
+          embroideryDesignId: selectedDesign?.id,
+          measurements,
+          paymentPlan,
+          totalAmount: totalPrice,
+          amountToPay: amountDue,
+        })
+      );
+      formData.append('receiptFile', receiptFile);
+      if (verificationResult) {
+        formData.append('verificationData', JSON.stringify(verificationResult.extractedData));
+      }
+
+      const res = await submitOrderWithReceiptAction(formData);
+      if (res && res.success && res.orderReference) {
+        setBankModalOpen(false);
+        router.push(`/track?ref=${res.orderReference}`);
+      } else {
+        alert(res?.error || 'Failed to finalize order. Please try again.');
+        setSubmitting(false);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Submission error');
+      setSubmitting(false);
+    }
+  };
+
+  const handleSkipSavedMeasurements = () => {
+    setReturningPromptOpen(false);
+    setCurrentStep(2);
+  };
+
 
   // Active measurements for selected style in exact display_order
   // Categorized and ordered measurements with parent/sub hierarchy and optional flags
@@ -126,6 +273,16 @@ export default function OrderCatalogClient({
     // The 5 fundamental bespoke measurements required for Kaftan / Babban Riga
     const requiredItems = categorizedMeasurements.filter((m: any) => m.isRequired && m.parentGroup !== 'Other');
     
+    
+    const isBabbanRiga = selectedStyle?.name?.toLowerCase().includes('babban') || selectedStyle?.name?.toLowerCase().includes('baban');
+    if (isBabbanRiga) {
+      const babbanWidthId = '4e643bd4-85d3-475a-a0f7-28e9983a2b56';
+      const babbanLengthId = 'ad35f082-95c9-47c2-ac86-37da805d4902';
+      const wVal = Number(measurements[babbanWidthId]);
+      const lVal = Number(measurements[babbanLengthId]);
+      if (!wVal || wVal < 1 || !lVal || lVal < 1) return false;
+    }
+
     return requiredItems.every((item: any) => {
       const val = measurements[item.id];
       if (val === undefined || val === null || val === '') return false;
@@ -144,101 +301,9 @@ export default function OrderCatalogClient({
       setErrorMessage('Please select a valid measurement value for every required field.');
       return;
     }
-
-    setSubmitting(true);
     setErrorMessage('');
-
-    const numericMeasurements: Record<string, number> = {};
-    for (const [key, val] of Object.entries(measurements)) {
-      if (val !== undefined && val !== '') {
-        numericMeasurements[key] = Number(val);
-      }
-    }
-
-    try {
-      const res = await createNewOrderAction({
-        sewingStyleId: selectedStyle.id,
-        sewingStyleName: selectedStyle.name,
-        sewingStyleImageUrl: selectedStyle?.image_url || null,
-        sewingFee: stylePrice,
-        designName: selectedDesign?.name || 'Standard Artwork',
-        designCode: selectedDesign?.code || 'EMB-001',
-        embroideryFee: designPrice,
-        designImageUrl: selectedDesign?.image_url || null,
-        paymentPlan,
-        customerName: customerName.trim() || 'Walk-in Client',
-        customerPhone: customerPhone.trim(),
-        deliveryDays: selectedStyle.turnaround_days || 7,
-          measurements: numericMeasurements,
-          submittedMeasurements: numericMeasurements,
-          cuffStyle: sleevePreference || cuffStyle,
-      });
-
-      if (!res.success) {
-        setErrorMessage(res.error || 'Failed to submit order.');
-        setSubmitting(false);
-        return;
-      }
-
-      // WhatsApp Pre-filled Summary
-        const tailorWhatsApp = "2348030635560";
-        const balanceAtPickup = totalPrice - payableToday;
-        const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-        const trackingUrl = `${origin}/track?query=${res.orderRef}`;
-
-        const formatChoice = (val: string) => {
-          if (!val || val.includes('Default') || val.includes('Tailor')) {
-            return "Tailor's Best Choice (Zabin Tela)";
-          }
-          return val;
-        };
-
-        const activeMeasurementItems = (categorizedMeasurements && categorizedMeasurements.length > 0)
-          ? categorizedMeasurements
-          : allStyleMeasurements;
-
-        const measurementsList = activeMeasurementItems
-          .filter((m: any) => numericMeasurements[m.id] !== undefined)
-          .map((m: any) => `  • ${m.label || m.name || 'Measurement'}: ${numericMeasurements[m.id]}"`)
-          .join('\n');
-
-        const msgText = 
-`*MKTF BESPOKE ATELIER COMMISSION*
-*Order Ref:* ${res.orderRef}
---------------------------------
-*Customer:* ${customerName.trim() || 'Walk-in Client'}
-*Phone:* ${customerPhone.trim() || 'N/A'}
---------------------------------
-*1. Sewing Cut:* ${selectedStyle?.name} (₦${stylePrice.toLocaleString()})
-*2. Embroidery Artwork:* ${selectedDesign?.name || 'Selected Design'} [${selectedDesign?.code || 'EMB'}] (₦${designPrice.toLocaleString()})
-*3. Finishing Specifications (Zabin Dinki):*
-  • Collar / Neck (Wuya): ${formatChoice(neckStyle)}
-  • Pocket Cut (Aljihu): ${formatChoice(pocketStyle)}
-  • Sleeve / Cuff (Hannu): ${formatChoice(sleevePreference || cuffStyle)}
-*4. Measurements:*
-${measurementsList || '  • Captured at Workshop'}
-*5. Pricing & Payment Choice:*
-  • Total Bill: ₦${totalPrice.toLocaleString()}
-  • Selected Plan: ${paymentPlan === '50_PERCENT' ? '50% Initial Deposit' : '100% Full Upfront Settlement'}
-  • *Payable Today:* ₦${payableToday.toLocaleString()}
-  • Balance at Pickup: ₦${balanceAtPickup.toLocaleString()}
---------------------------------
-*Live Workshop Tracking Link:*
-${trackingUrl}
---------------------------------
-*Settlement Account Details:*
-  • Bank: OPay
-  • Account No: 8030635560
-  • Account Name: Abdulrahman Aliyu
---------------------------------
-Hello Master Abdulrahman! I have reviewed my selection above. I would like to confirm my order and transfer payment:`;
-
-        window.open(`https://wa.me/${tailorWhatsApp}?text=${encodeURIComponent(msgText)}`, '_blank');
-        router.push(`/order/success?ref=${res.orderRef}`);
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Server error.');
-      setSubmitting(false);
-    }
+    // Open in-app settlement modal for bank transfer & OCR receipt verification
+    setBankModalOpen(true);
   }
 
   return (
@@ -286,11 +351,45 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '28px', alignItems: 'start' }}>
           {/* Main Selectors Column */}
           <div style={{ display: 'grid', gap: '32px' }}>
-            {/* 1. Style Selector */}
+            
+              {/* 0. Customer Identification */}
+              <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: '0 0 12px' }}>
+                  1. Customer Information
+                </h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                  <label style={{ display: 'grid', gap: '6px' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>
+                      Full Name <span style={{ color: '#dc2626' }}>*</span>
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="e.g. Sani Musa"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: '6px' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>
+                      WhatsApp / Phone Number <span style={{ color: '#dc2626' }}>*</span>
+                    </span>
+                    <input
+                      type="tel"
+                      placeholder="e.g. 08012345678"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* 1. Style Selector */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>
-                  1. Select Tailoring Garment
+                  2. Select Tailoring Garment
                 </h2>
                 {selectedStyle && (
                   <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '3px 10px', borderRadius: '20px' }}>
@@ -459,9 +558,9 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
             </div>
 
             <button
-              type="button"
-              onClick={() => setCurrentStep(2)}
-              disabled={!selectedStyle}
+                type="button"
+                onClick={handleProceedToStep2}
+                disabled={!selectedStyle || checkingCustomer}
               style={{
                 width: '100%',
                 padding: '14px 20px',
@@ -643,7 +742,71 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
               </div>
             )}
 
-            {/* Group 5: Trouser Length, Waist, Leg Opening */}
+            
+              {/* Group 4.5: Babban Riga Specific Dimensions (Conditional) */}
+              {(selectedStyle?.name?.toLowerCase().includes('babban') || selectedStyle?.name?.toLowerCase().includes('baban')) && (
+                <div style={{ padding: '16px 20px', background: '#f8fafc', border: '1.5px solid #0f172a', borderRadius: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.05em', color: '#0f172a', textTransform: 'uppercase' }}>
+                      Babban Riga Dimensions
+                    </span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#dc2626', background: '#fee2e2', padding: '2px 7px', borderRadius: '4px' }}>
+                      Required
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+                    {/* Width of Babban riga / Fadin babban riga */}
+                    <label style={{ display: 'grid', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a' }}>
+                          Width of Babban riga / Fadin babban riga
+                        </span>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#dc2626', background: '#fee2e2', padding: '2px 7px', borderRadius: '4px' }}>
+                          Required
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic', marginBottom: '2px' }}>
+                        (from spine to sleeve.)
+                      </span>
+                      <select
+                        value={measurements['4e643bd4-85d3-475a-a0f7-28e9983a2b56'] || ''}
+                        onChange={(e) => setMeasurements({ ...measurements, '4e643bd4-85d3-475a-a0f7-28e9983a2b56': e.target.value })}
+                        style={{ width: '100%', minHeight: '44px', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff', fontSize: '0.95rem', cursor: 'pointer' }}
+                      >
+                        <option value="">Select a value</option>
+                        {Array.from({ length: 120 }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {/* Length of Babban riga / Tsayin Babban riga */}
+                    <label style={{ display: 'grid', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a' }}>
+                          Length of Babban riga / Tsayin Babban riga
+                        </span>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#dc2626', background: '#fee2e2', padding: '2px 7px', borderRadius: '4px' }}>
+                          Required
+                        </span>
+                      </div>
+                      <div style={{ height: '18px' }} />
+                      <select
+                        value={measurements['ad35f082-95c9-47c2-ac86-37da805d4902'] || ''}
+                        onChange={(e) => setMeasurements({ ...measurements, 'ad35f082-95c9-47c2-ac86-37da805d4902': e.target.value })}
+                        style={{ width: '100%', minHeight: '44px', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff', fontSize: '0.95rem', cursor: 'pointer' }}
+                      >
+                        <option value="">Select a value</option>
+                        {Array.from({ length: 120 }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Group 5: Trouser Length, Waist, Leg Opening */}
             {categorizedMeasurements.filter((m: any) => m.parentGroup === 'Trouser').length > 0 && (
               <div style={{ padding: '16px 20px', background: '#fafbfa', border: '1px solid #e2e8f0', borderRadius: '14px' }}>
                 <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.05em', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>
@@ -989,7 +1152,7 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
                 boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)',
               }}
             >
-              💬 {submitting ? 'Transmitting Order...' : `Book & Settle ₦${payableToday.toLocaleString()} via WhatsApp →`}
+              💳 {submitting ? 'Preparing Settlement...' : `Book & Settle ₦${payableToday.toLocaleString()} →`}
             </button>
           </div>
         </section>
@@ -1065,6 +1228,188 @@ Hello Master Abdulrahman! I have reviewed my selection above. I would like to co
           </div>
         </div>
       )}
-    </div>
+    
+      {/* Returning Customer Confirmation Dialog */}
+      {returningPromptOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '480px', width: '100%', padding: '28px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'inline-flex', padding: '10px', background: '#dcfce7', borderRadius: '12px', color: '#16a34a', marginBottom: '16px' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0 0 8px' }}>
+              Welcome back, {returningData?.customerName || customerName}!
+            </h3>
+            <p style={{ color: '#475569', fontSize: '0.92rem', lineHeight: '1.5', margin: '0 0 20px' }}>
+              We found measurements from your previous order (<strong>{returningData?.orderReference}</strong>). Would you like to automatically fill in your previous measurements?
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={handleSkipSavedMeasurements}
+                style={{ padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#334155', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}
+              >
+                No, Enter Fresh
+              </button>
+              <button
+                type="button"
+                onClick={handleApplySavedMeasurements}
+                style={{ padding: '12px', borderRadius: '10px', border: 'none', background: '#0f172a', color: '#ffffff', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}
+              >
+                Yes, Auto-fill
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* IN-APP BANK TRANSFER & RECEIPT VERIFICATION MODAL */}
+      {bankModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
+          <div style={{ background: '#ffffff', borderRadius: '18px', maxWidth: '540px', width: '100%', maxHeight: '92vh', overflowY: 'auto', padding: '28px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Atelier Direct Settlement
+                </span>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: '4px 0 0' }}>
+                  Bank Transfer & Verification
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBankModalOpen(false)}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 800 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Amount Banner */}
+            <div style={{ background: '#0f172a', color: '#ffffff', padding: '18px 20px', borderRadius: '12px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'block' }}>
+                  {paymentPlan === '50_PERCENT' ? '50% Initial Deposit Due' : '100% Full Payment Due'}
+                </span>
+                <span style={{ fontSize: '1.6rem', fontWeight: 900, color: '#38bdf8' }}>
+                  ₦{(paymentPlan === '50_PERCENT' ? Math.round(totalPrice / 2) : totalPrice).toLocaleString()}
+                </span>
+              </div>
+              <span style={{ fontSize: '0.75rem', background: 'rgba(255,255,255,0.15)', padding: '4px 10px', borderRadius: '20px', fontWeight: 600 }}>
+                {selectedStyle?.name || 'Garment'}
+              </span>
+            </div>
+
+            {/* Account Details Box */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Bank</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>{bankDetails.bankName}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Account Name</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>{bankDetails.accountName}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                <div>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block' }}>Account Number</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 900, letterSpacing: '0.05em', color: '#0f172a' }}>{bankDetails.accountNumber}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyAccount}
+                  style={{ background: copiedAccount ? '#16a34a' : '#0f172a', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  {copiedAccount ? 'Copied ✓' : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            {/* Upload Receipt Section */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '8px' }}>
+                Upload Transfer Receipt (Screenshot / Photo) <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={handleReceiptChange}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1.5px dashed #cbd5e1', background: '#fafafa', cursor: 'pointer', fontSize: '0.85rem' }}
+              />
+
+              {/* OCR Scanning Progress */}
+              {verifyingReceipt && (
+                <div style={{ marginTop: '12px', padding: '12px', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.1rem' }}>⏳</span>
+                  <span style={{ fontSize: '0.82rem', color: '#1e40af', fontWeight: 600 }}>
+                    Scanning receipt & checking 6 audit rules (Status, Account, Name, Amount, Date, Reference)...
+                  </span>
+                </div>
+              )}
+
+              {/* Verification Feedback Result */}
+              {verificationResult && (
+                <div style={{ marginTop: '12px', padding: '14px', borderRadius: '10px', background: verificationResult.isValid ? '#f0fdf4' : '#fff1f2', border: `1.5px solid ${verificationResult.isValid ? '#86efac' : '#fecdd3'}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '1.1rem' }}>{verificationResult.isValid ? '✓' : '⚠️'}</span>
+                    <strong style={{ fontSize: '0.88rem', color: verificationResult.isValid ? '#166534' : '#991b1b' }}>
+                      {verificationResult.isValid ? 'Receipt Verified Successfully!' : 'Verification Flagged Items'}
+                    </strong>
+                  </div>
+
+                  {verificationResult.isValid ? (
+                    <div style={{ fontSize: '0.78rem', color: '#15803d', display: 'grid', gap: '4px' }}>
+                      <div>• Status: <strong>{verificationResult.extractedData.statusText}</strong></div>
+                      <div>• Account: <strong>{verificationResult.extractedData.foundAccount}</strong></div>
+                      <div>• Amount: <strong>₦{verificationResult.extractedData.foundAmount?.toLocaleString()}</strong></div>
+                      <div>• Reference: <strong>{verificationResult.extractedData.referenceId}</strong></div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.78rem', color: '#991b1b' }}>
+                      <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                        {verificationResult.errors.map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                      <p style={{ marginTop: '6px', fontSize: '0.73rem', fontStyle: 'italic', color: '#7f1d1d' }}>
+                        You may still proceed with submission for manual workshop verification.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+              <button
+                type="button"
+                disabled={submitting || !receiptFile}
+                onClick={handleCompleteOrderWithReceipt}
+                style={{
+                  padding: '14px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: !receiptFile ? '#94a3b8' : '#0f172a',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '0.95rem',
+                  cursor: !receiptFile ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                {submitting ? 'Confirming Order & Tracking...' : 'Confirm Payment & Track Order →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+</div>
   );
 }
