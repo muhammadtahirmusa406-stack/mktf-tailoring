@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import Link from 'next/link';
@@ -9,13 +9,51 @@ export default function PrintJobSlipClient({ order }: { order: any }) {
     ? `${window.location.origin}/track?query=${order.order_reference}`
     : `http://localhost:3000/track?query=${order.order_reference}`;
 
-  const remaining = Number(order.total_price || 0) - Number(order.amount_paid || 0);
+  const remaining = Math.max(0, Number(order.total_price || 0) - Number(order.amount_paid || 0));
   const isFullyPaid = remaining <= 0 || order.payment_status === '100%_FULLY_PAID';
-  const m = order.customer_measurements || {};
+  const rawMeasurements = order.customer_measurements || {};
+
+  // Formatter for measurement & preference keys (e.g. "babban_riga_length" -> "Babban Riga Length")
+  const formatLabel = (key: string) => {
+    return key
+      .replace(/_/g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  // Separate preferences/meta fields from numeric body measurements
+  const preferenceKeys = ['sleeve_preference', 'neck_style', 'pocket_style', 'cuff_style', 'finishing', 'notes', 'special_notes'];
+  
+  const measurementsList: { key: string; label: string; value: string; isBabban?: boolean }[] = [];
+  const preferencesList: { label: string; value: string }[] = [];
+
+  Object.entries(rawMeasurements).forEach(([key, val]) => {
+    if (val === null || val === undefined || val === '') return;
+
+    if (preferenceKeys.includes(key)) {
+      if (key !== 'notes' && key !== 'special_notes') {
+        preferencesList.push({
+          label: formatLabel(key),
+          value: String(val),
+        });
+      }
+    } else {
+      const isBabban = /babban|baban/i.test(key);
+      measurementsList.push({
+        key,
+        label: formatLabel(key),
+        value: typeof val === 'number' || !isNaN(Number(val)) ? `${val}"` : String(val),
+        isBabban,
+      });
+    }
+  });
+
+  const notes = rawMeasurements.notes || rawMeasurements.special_notes || null;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f1f5f9', padding: '30px 16px', fontFamily: 'system-ui, sans-serif' }}>
       
+      {/* Top Action Bar */}
       <div
         className="no-print"
         style={{
@@ -55,6 +93,7 @@ export default function PrintJobSlipClient({ order }: { order: any }) {
         </button>
       </div>
 
+      {/* Printable Job Slip */}
       <div
         id="job-slip"
         style={{
@@ -68,6 +107,7 @@ export default function PrintJobSlipClient({ order }: { order: any }) {
           boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
         }}
       >
+        {/* Header */}
         <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '14px', marginBottom: '16px' }}>
           <span style={{ fontSize: '0.72rem', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
             MKTF TAILORING WORKSHOP JOB TAG
@@ -80,6 +120,7 @@ export default function PrintJobSlipClient({ order }: { order: any }) {
           </div>
         </div>
 
+        {/* QR Tracking */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '18px', background: '#f8fafc', padding: '14px', borderRadius: '10px', marginBottom: '18px', border: '1px solid #e2e8f0' }}>
           <div style={{ background: '#ffffff', padding: '8px', borderRadius: '8px', display: 'flex', border: '1px solid #cbd5e1' }}>
             <QRCodeSVG value={trackingUrl} size={90} level="M" />
@@ -94,6 +135,7 @@ export default function PrintJobSlipClient({ order }: { order: any }) {
           </div>
         </div>
 
+        {/* Client Metadata */}
         <div style={{ marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
             <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>CLIENT NAME:</span>
@@ -105,54 +147,68 @@ export default function PrintJobSlipClient({ order }: { order: any }) {
           </div>
         </div>
 
-        {/* Body Measurements for Artisan */}
-        {(m.shoulder || m.chest || m.top_length || m.trouser_length) && (
+        {/* Dynamic Measurements (Auto-adapts to any future measurements) */}
+        {measurementsList.length > 0 && (
           <div style={{ marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', background: '#f8fafc', padding: '12px', borderRadius: '8px' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
               📐 CLIENT BODY MEASUREMENTS (INCHES)
             </span>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', fontSize: '0.82rem' }}>
-              <div><strong>Shoulder:</strong> {m.shoulder || '-'}</div>
-              <div><strong>Chest:</strong> {m.chest || '-'}</div>
-              <div><strong>Sleeve:</strong> {m.sleeve_length || '-'}</div>
-              <div><strong>Top Len:</strong> {m.top_length || '-'}</div>
-              <div><strong>Trouser:</strong> {m.trouser_length || '-'}</div>
-              <div><strong>Waist:</strong> {m.trouser_waist || '-'}</div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', fontSize: '0.82rem' }}>
+              {measurementsList
+                .filter((item) => !item.isBabban)
+                .map((item) => (
+                  <div key={item.key}>
+                    <span style={{ color: '#64748b' }}>{item.label}:</span> <strong>{item.value}</strong>
+                  </div>
+                ))}
             </div>
-            {m.notes && (
-              <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '6px' }}>
-                <em>Note: {m.notes}</em>
+
+            {/* Auto-detected Babban Riga specific measurements */}
+            {measurementsList.some((item) => item.isBabban) && (
+              <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #cbd5e1', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '0.82rem', background: '#e2e8f0', padding: '6px 10px', borderRadius: '6px' }}>
+                {measurementsList
+                  .filter((item) => item.isBabban)
+                  .map((item) => (
+                    <div key={item.key}>
+                      <span style={{ color: '#0f172a', fontWeight: 800 }}>⭐ {item.label}:</span> <strong>{item.value}</strong>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {notes && (
+              <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '8px' }}>
+                <em>Note: {notes}</em>
               </div>
             )}
           </div>
         )}
 
+        {/* Garment Style & Finishing Specifications */}
         <div style={{ marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-            FINISHING SPECIFICATIONS
+            GARMENT & FINISHING SPECIFICATIONS
           </span>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.85rem' }}>
             <span>Style Cut:</span>
-            <strong>{order.sewing_style_name_at_order || 'Standard'}</strong>
+            <strong>{order.sewing_style_name_at_order || 'Standard Custom Cut'}</strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.85rem' }}>
-            <span>Embroidery Code:</span>
-            <strong style={{ color: '#4338ca' }}>{order.design_reference_at_order || 'NONE'}</strong>
+            <span>Embroidery Code / Design:</span>
+            <strong style={{ color: '#4338ca' }}>{order.design_reference_at_order || order.design_name_at_order || 'NONE'}</strong>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.82rem' }}>
-            <span>Collar / Neck:</span>
-            <span>{order.neck_style}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.82rem' }}>
-            <span>Pocket:</span>
-            <span>{order.pocket_style}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-            <span>Sleeve / Cuff:</span>
-            <span>{order.cuff_style}</span>
-          </div>
+
+          {/* Dynamic customer selected preferences */}
+          {preferencesList.map((pref, idx) => (
+            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.82rem' }}>
+              <span>{pref.label}:</span>
+              <strong>{pref.value}</strong>
+            </div>
+          ))}
         </div>
 
+        {/* Financial Settlement */}
         <div style={{ marginBottom: '14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
             <span style={{ fontSize: '0.82rem', color: '#64748b' }}>Total Tailoring Bill:</span>

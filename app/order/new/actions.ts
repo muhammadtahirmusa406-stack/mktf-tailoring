@@ -309,6 +309,10 @@ export async function submitOrderWithReceiptAction(formData: FormData) {
     const payload = JSON.parse(orderDataJson);
     const verification = verificationDataJson ? JSON.parse(verificationDataJson) : null;
 
+    if (!verification || !verification.referenceId) {
+      return { success: false, error: 'Transaction rejected: Receipt verification is required and must contain a valid Reference/Session ID.' };
+    }
+
     let receiptUrl = '';
     if (file && typeof file.arrayBuffer === 'function') {
       const fileExt = file.name.split('.').pop() || 'png';
@@ -332,23 +336,42 @@ export async function submitOrderWithReceiptAction(formData: FormData) {
 
     const orderRef = 'ORD-' + Math.random().toString(36).substring(2, 10).toUpperCase();
 
+    // Fetch style & design snapshot labels dynamically if missing
+    let styleName = payload.sewingStyleName || null;
+    let designRef = payload.designCode || null;
+    let designName = payload.designName || null;
+
+    if (payload.sewingStyleId && !styleName) {
+      const { data: s } = await supabase.from('sewing_styles').select('name').eq('id', payload.sewingStyleId).maybeSingle();
+      if (s) styleName = s.name;
+    }
+    if (payload.embroideryDesignId && !designRef) {
+      const { data: d } = await supabase.from('embroidery_designs').select('design_code, name').eq('id', payload.embroideryDesignId).maybeSingle();
+      if (d) {
+        designRef = d.design_code;
+        designName = d.name;
+      }
+    }
+
     const { data: newOrder, error: insertErr } = await supabase
       .from('orders')
       .insert({
+        sewing_style_name_at_order: styleName,
+        design_reference_at_order: designRef,
+        design_name_at_order: designName,
         order_reference: orderRef,
         customer_name: payload.customerName,
         customer_phone: payload.customerPhone,
         sewing_style_id: payload.sewingStyleId,
-        embroidery_design_id: payload.embroideryDesignId || null,
         customer_measurements: payload.measurements,
-        payment_plan: payload.paymentPlan,
-        total_amount: payload.totalAmount,
-        deposit_amount: payload.amountToPay,
-        payment_status: 'PAID',
+        total_price: payload.totalAmount,
+        amount_paid: payload.amountToPay,
+        payment_choice: (payload.paymentPlan === '50_PERCENT' || payload.amountToPay < payload.totalAmount) ? '50_PERCENT_DEPOSIT' : '100_PERCENT_FULL',
+        payment_status: (payload.paymentPlan === '50_PERCENT' || payload.amountToPay < payload.totalAmount) ? '50%_DEPOSIT_PAID' : '100%_FULLY_PAID',
+        status: 'CUTTING',
         receipt_url: receiptUrl || null,
         transaction_reference: verification?.referenceId || null,
         payment_verification_data: verification || null,
-        order_status: 'CUTTING',
       })
       .select('id, order_reference')
       .single();

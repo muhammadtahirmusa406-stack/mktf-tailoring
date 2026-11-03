@@ -234,3 +234,42 @@ export async function deleteDesignAction(idOrFormData: string | FormData): Promi
     return { success: false, error: err.message || 'Failed to delete design' };
   }
 }
+// Bulk Delete Embroidery Designs
+export async function deleteMultipleDesignsAction(ids: string[]): Promise<{ success: boolean; count?: number; error?: string }> {
+  try {
+    if (!ids || ids.length === 0) {
+      return { success: false, error: 'No design IDs provided.' };
+    }
+    const supabase = await createClient();
+    const { error } = await supabase.from('embroidery_designs').delete().in('id', ids);
+    if (error) throw error;
+
+    revalidatePath('/admin/catalog');
+    revalidatePath('/order/new');
+    revalidatePath('/catalog');
+    return { success: true, count: ids.length };
+  } catch (err: any) {
+    console.error('Bulk delete designs error:', err);
+    return { success: false, error: err.message || 'Failed to delete designs' };
+  }
+}
+
+// Bulk Delete Sewing Styles
+export async function deleteMultipleStylesAction(ids: string[]): Promise<{ success: boolean; count?: number; error?: string }> {
+  try {
+    if (!ids || ids.length === 0) {
+      return { success: false, error: 'No style IDs provided.' };
+    }
+    const supabase = await createClient();
+    const { error } = await supabase.from('sewing_styles').delete().in('id', ids);
+    if (error) throw error;
+
+    revalidatePath('/admin/catalog');
+    revalidatePath('/order/new');
+    revalidatePath('/catalog');
+    return { success: true, count: ids.length };
+  } catch (err: any) {
+    console.error('Bulk delete styles error:', err);
+    return { success: false, error: err.message || 'Failed to delete styles' };
+  }
+}

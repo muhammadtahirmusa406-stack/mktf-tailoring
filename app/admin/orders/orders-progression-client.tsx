@@ -269,17 +269,7 @@ export default function OrdersProgressionClient({
                   >
                     🖨️ Job Slip
                   </Link>
-                      {balance > 0 && (
-                        <button
-                          type="button"
-                          disabled={updatingId === ord.id}
-                          onClick={() => handleConfirmPayment(ord.id, Number(ord.total_price))}
-                          className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-md disabled:opacity-50"
-                          title="Confirm customer balance payment"
-                        >
-                          {updatingId === ord.id ? '...' : '💰 Settle'}
-                        </button>
-                      )}
+
                     </div>
 
                   {nextStage ? (

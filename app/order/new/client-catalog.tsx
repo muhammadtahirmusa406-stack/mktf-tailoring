@@ -149,6 +149,13 @@ export default function OrderCatalogClient({
       alert('Please upload your transfer receipt to proceed.');
       return;
     }
+    if (!verificationResult || !verificationResult.isValid) {
+      const errorMsg = verificationResult?.errors?.length
+        ? verificationResult.errors.map((e) => "- " + e).join("\n")
+        : "Receipt verification failed. Please upload a clear official transfer receipt.";
+      alert("Cannot proceed: The uploaded receipt failed verification.\n\nErrors:\n" + errorMsg);
+      return;
+    }
     setSubmitting(true);
     try {
       const amountDue = paymentPlan === '50_PERCENT' ? Math.round(totalPrice / 2) : totalPrice;
@@ -159,8 +166,17 @@ export default function OrderCatalogClient({
           customerName,
           customerPhone,
           sewingStyleId: selectedStyle?.id,
+          sewingStyleName: selectedStyle?.name || '',
           embroideryDesignId: selectedDesign?.id,
-          measurements,
+          designCode: selectedDesign?.code || selectedDesign?.design_code || '',
+          designName: selectedDesign?.name || '',
+          measurements: {
+            ...measurements,
+            sleeve_preference: sleevePreference,
+            neck_style: neckStyle,
+            pocket_style: pocketStyle,
+            cuff_style: cuffStyle,
+          },
           paymentPlan,
           totalAmount: totalPrice,
           amountToPay: amountDue,
@@ -257,9 +273,29 @@ export default function OrderCatalogClient({
     // Any remaining items fallback
     currentStyleItems.forEach((it: any) => {
       if (!usedIds.has(it.id)) {
-        pushItem(it, it.rawSm.is_required, false, 'Other');
+        pushItem(it, it.rawSm ? it.rawSm.is_required : true, false, 'Other');
       }
     });
+
+    // If style has no linked DB records, provide the 5 standard foundation cards + optional sub-dimensions
+    if (orderedList.length === 0) {
+      return [
+        // 1. Shoulder
+        { id: 'shoulder', name: 'Shoulder', hausaName: 'Kafada', label: 'Shoulder / Kafada', isRequired: true, isSub: false, parentGroup: 'Shoulder' },
+        // 2. Sleeve + Optional Hand Opening
+        { id: 'sleeve', name: 'Sleeve Length', hausaName: 'Hannu', label: 'Sleeve / Hannu', isRequired: true, isSub: false, parentGroup: 'Sleeve' },
+        { id: 'hand_opening', name: 'Hand Opening', hausaName: 'Fadin Hannun', label: 'Hand Opening / Fadin Hannu', isRequired: false, isSub: true, parentGroup: 'Sleeve' },
+        // 3. Shirt Length + Optional Shirt Width / Chest
+        { id: 'shirt_length', name: 'Shirt Length', hausaName: 'Tsayin Riga', label: 'Shirt Length / Tsayin Riga', isRequired: true, isSub: false, parentGroup: 'Shirt' },
+        { id: 'shirt_width', name: 'Shirt Width', hausaName: 'Fadin Riga', label: 'Shirt Width / Fadin Riga', isRequired: false, isSub: true, parentGroup: 'Shirt' },
+        // 4. Neck
+        { id: 'neck', name: 'Neck', hausaName: 'Wiya', label: 'Neck / Wiya', isRequired: true, isSub: false, parentGroup: 'Neck' },
+        // 5. Trouser Length + Optional Waist & Leg Opening
+        { id: 'trouser_length', name: 'Trouser Length', hausaName: 'Tsayin Wando', label: 'Trouser Length / Tsayin Wando', isRequired: true, isSub: false, parentGroup: 'Trouser' },
+        { id: 'waist', name: 'Waist', hausaName: 'Kwankwaso', label: 'Waist / Kwankwaso', isRequired: false, isSub: true, parentGroup: 'Trouser' },
+        { id: 'leg_opening', name: 'Leg Opening', hausaName: 'Fadin Kafar', label: 'Leg Opening / Fadin Kafar', isRequired: false, isSub: true, parentGroup: 'Trouser' }
+      ];
+    }
 
     return orderedList;
   }, [selectedStyle, allStyleMeasurements]);
