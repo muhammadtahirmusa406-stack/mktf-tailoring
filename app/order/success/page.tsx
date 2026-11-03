@@ -73,7 +73,7 @@ export default async function OrderSuccessPage({ searchParams }: Props) {
         <div style={{ marginTop: 24, display: 'grid', gap: 10 }}>
           {orderRef && (
             <Link
-              href={`/track?ref=${encodeURIComponent(orderRef)}`}
+              href={`/track?query=${encodeURIComponent(orderRef)}`}
               style={{
                 display: 'block',
                 width: '100%',

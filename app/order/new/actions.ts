@@ -46,7 +46,8 @@ export async function createNewOrderAction(orderData: {
   neckStyle?: string;
   pocketStyle?: string;
   cuffStyle?: string;
-  submittedMeasurements: Record<string, number>;
+  submittedMeasurements?: Record<string, number>;
+  measurements?: Record<string, number>;
 }) {
   try {
     const supabase = await createClient();
@@ -79,29 +80,52 @@ export async function createNewOrderAction(orderData: {
       value: number;
     }> = [];
 
-    for (const item of configuredMeasurements) {
-      const def: any = item.measurement_definitions;
-      if (!def) continue;
+    // Core required bespoke dimensions: Shoulder, Sleeve, Shirt Length, Neck, Trouser Length
+      const optionalKeys = ['shirt_width', 'fadin_rigar', 'hand_opening', 'fadin_hannu', 'trouser_waist', 'kwankwaso', 'leg_opening', 'fadin_kafa'];
 
-      const rawVal = orderData.submittedMeasurements[def.id];
-      const val = Number(rawVal);
+      for (const item of configuredMeasurements) {
+        const def: any = item.measurement_definitions;
+        if (!def) continue;
 
-      // Must be integer between 1 and 120
-      if (!Number.isInteger(val) || val < 1 || val > 120) {
-        if (item.is_required) {
+        const measurementsMap = orderData.submittedMeasurements || orderData.measurements || {};
+        const rawVal = measurementsMap[def.id];
+
+        // If the field is optional or blank
+        const isClientOptional = optionalKeys.some(k => 
+          (def.key && def.key.toLowerCase().includes(k)) || 
+          (def.name && def.name.toLowerCase().includes('width')) ||
+          (def.name && def.name.toLowerCase().includes('opening')) ||
+          (def.name && def.name.toLowerCase().includes('waist'))
+        );
+
+        if (rawVal === undefined || rawVal === null || rawVal === '') {
+          // If marked optional on client, skip cleanly
+          if (isClientOptional || !item.is_required) {
+            continue;
+          }
+          return {
+            success: false,
+            error: `Measurement "${def.name} / ${def.hausa_name}" is required.`,
+          };
+        }
+
+        const val = Number(rawVal);
+        if (!Number.isInteger(val) || val < 1 || val > 120) {
+          if (isClientOptional) {
+            continue; // Ignore malformed blank optional fields
+          }
           return {
             success: false,
             error: `Measurement "${def.name} / ${def.hausa_name}" must be a whole number between 1 and 120.`,
           };
         }
-      } else {
+
         measurementsToInsert.push({
           measurement_definition_id: def.id,
           measurement_name_at_order: `${def.name} / ${def.hausa_name}`,
           value: val,
         });
       }
-    }
 
     // 2. Compute Authoritative Order Financials
     const total = orderData.sewingFee + orderData.embroideryFee;

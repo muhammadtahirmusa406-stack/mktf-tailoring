@@ -8,10 +8,10 @@ const STAGES = ['NEW', 'CUTTING', 'EMBROIDERY', 'SEWING', 'READY FOR PICKUP', 'C
 export default async function TrackOrderPage({
   searchParams,
 }: {
-  searchParams: Promise<{ query?: string }>;
+  searchParams: Promise<{ query?: string; ref?: string }>;
 }) {
-  const { query = '' } = await searchParams;
-  const cleanQuery = query.trim();
+  const params = await searchParams;
+  const cleanQuery = (params.query || params.ref || '').trim();
 
   let order: any = null;
 
