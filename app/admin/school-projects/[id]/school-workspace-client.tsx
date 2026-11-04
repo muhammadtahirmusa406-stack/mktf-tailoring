@@ -45,6 +45,7 @@ export default function SchoolWorkspaceClient({
   const [students, setStudents] = useState<Student[]>(initialStudents);
   const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'DONE' | 'RETURNED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [cuttingSort, setCuttingSort] = useState<'NONE' | 'RIGA_DESC' | 'WANDO_DESC'>('NONE');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [targetShopId, setTargetShopId] = useState('');
   const [loadingAction, setLoadingAction] = useState(false);
@@ -302,15 +303,24 @@ export default function SchoolWorkspaceClient({
   const doneList = students.filter((s) => s.status === 'DONE');
   const returnedList = students.filter((s) => s.status === 'RETURNED');
 
-  const filteredStudents = (
-    activeTab === 'ALL'
-      ? students
-      : activeTab === 'PENDING'
-      ? pendingList
-      : activeTab === 'DONE'
-      ? doneList
-      : returnedList
-  ).filter((s) => s.student_name.toLowerCase().includes(searchQuery.toLowerCase()));
+  let displayedList = (
+      activeTab === 'ALL'
+        ? students
+        : activeTab === 'PENDING'
+        ? pendingList
+        : activeTab === 'DONE'
+        ? doneList
+        : returnedList
+    ).filter((s) => s.student_name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    if (activeTab === 'PENDING') {
+      if (cuttingSort === 'RIGA_DESC') {
+        displayedList = [...displayedList].sort((a, b) => (Number(b.riga) || 0) - (Number(a.riga) || 0));
+      } else if (cuttingSort === 'WANDO_DESC') {
+        displayedList = [...displayedList].sort((a, b) => (Number(b.wando) || 0) - (Number(a.wando) || 0));
+      }
+    }
+    const filteredStudents = displayedList;
 
   return (
     <div className="space-y-8">
@@ -549,10 +559,50 @@ export default function SchoolWorkspaceClient({
               }`}
             >
               Returned / Fix ({returnedList.length})
-            </button>
-          </div>
+              </button>
+            </div>
 
-          <div className="w-full sm:w-64">
+            {/* Batch Cutting Sorters (Visible in Pending stage) */}
+            {activeTab === 'PENDING' && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 mr-1 flex items-center gap-1">
+                  ✂️ Batch Cut:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCuttingSort((prev) => (prev === 'RIGA_DESC' ? 'NONE' : 'RIGA_DESC'))}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                    cuttingSort === 'RIGA_DESC'
+                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20 font-black'
+                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'
+                  }`}
+                >
+                  👕 Shirt Length (Riga ↓)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCuttingSort((prev) => (prev === 'WANDO_DESC' ? 'NONE' : 'WANDO_DESC'))}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                    cuttingSort === 'WANDO_DESC'
+                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20 font-black'
+                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'
+                  }`}
+                >
+                  👖 Trouser Length (Wando ↓)
+                </button>
+                {cuttingSort !== 'NONE' && (
+                  <button
+                    type="button"
+                    onClick={() => setCuttingSort('NONE')}
+                    className="text-[11px] text-slate-400 hover:text-rose-400 underline ml-1"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="w-full sm:w-64">
             <input
               type="text"
               placeholder="Search student by name..."

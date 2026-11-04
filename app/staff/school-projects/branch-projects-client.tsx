@@ -28,6 +28,7 @@ export default function BranchProjectsClient({
 }) {
   const [students, setStudents] = useState<AssignedStudent[]>(initialStudents);
   const [filter, setFilter] = useState<'PENDING' | 'DONE' | 'ALL'>('PENDING');
+  const [cuttingSort, setCuttingSort] = useState<'NONE' | 'RIGA_DESC' | 'WANDO_DESC'>('NONE');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const handleComplete = async (studentId: string, projectId: string) => {
@@ -59,7 +60,14 @@ export default function BranchProjectsClient({
 
   const pending = students.filter((s) => s.status === 'PENDING' || s.status === 'RETURNED');
   const done = students.filter((s) => s.status === 'DONE');
-  const displayed = filter === 'ALL' ? students : filter === 'PENDING' ? pending : done;
+  let displayed = filter === 'ALL' ? students : filter === 'PENDING' ? pending : done;
+  if (filter === 'PENDING') {
+    if (cuttingSort === 'RIGA_DESC') {
+      displayed = [...displayed].sort((a, b) => (Number(b.riga) || 0) - (Number(a.riga) || 0));
+    } else if (cuttingSort === 'WANDO_DESC') {
+      displayed = [...displayed].sort((a, b) => (Number(b.wando) || 0) - (Number(a.wando) || 0));
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -127,7 +135,8 @@ export default function BranchProjectsClient({
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => setFilter('PENDING')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
