@@ -3,17 +3,30 @@
 import React, { useEffect } from 'react';
 
 interface ImageLightboxModalProps {
-  src: string | null;
+  src?: string | null;
+  imageSrc?: string | null;
   alt?: string;
+  title?: string;
+  isOpen?: boolean;
   onClose: () => void;
 }
 
-export default function ImageLightboxModal({ src, alt = 'Preview Image', onClose }: ImageLightboxModalProps) {
+export default function ImageLightboxModal({
+  src,
+  imageSrc,
+  alt = 'Preview Image',
+  title,
+  isOpen = true,
+  onClose,
+}: ImageLightboxModalProps) {
+  const activeSrc = src || imageSrc;
+  const displayTitle = title || alt;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    if (src) {
+    if (activeSrc && isOpen) {
       document.body.style.overflow = 'hidden';
       window.addEventListener('keydown', handleKeyDown);
     }
@@ -21,9 +34,9 @@ export default function ImageLightboxModal({ src, alt = 'Preview Image', onClose
       document.body.style.overflow = 'unset';
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [src, onClose]);
+  }, [activeSrc, isOpen, onClose]);
 
-  if (!src) return null;
+  if (!isOpen || !activeSrc) return null;
 
   return (
     <div 
@@ -45,7 +58,7 @@ export default function ImageLightboxModal({ src, alt = 'Preview Image', onClose
         onClick={(e) => e.stopPropagation()}
       >
         <img
-          src={src}
+          src={activeSrc}
           alt={alt}
           className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl border border-white/10"
         />

@@ -108,7 +108,7 @@ export async function createNewOrderAction(orderData: {
           (def.name && def.name.toLowerCase().includes('waist'))
         );
 
-        if (rawVal === undefined || rawVal === null || rawVal === '') {
+        if (rawVal === undefined || rawVal === null || (rawVal as any) === '') {
           // If marked optional on client, skip cleanly
           if (isClientOptional || !item.is_required) {
             continue;

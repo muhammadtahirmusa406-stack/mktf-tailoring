@@ -134,33 +134,73 @@ export default function BranchProjectsClient({
         ))}
       </div>
 
-      {/* Filter Tabs */}
+      {/* Filter Tabs & Batch Cutting Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => setFilter('PENDING')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
-            filter === 'PENDING' ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-slate-400 hover:text-white'
-          }`}
-        >
-          Pending Production ({pending.length})
-        </button>
-        <button
-          onClick={() => setFilter('DONE')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
-            filter === 'DONE' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-900 text-slate-400 hover:text-white'
-          }`}
-        >
-          Completed ({done.length})
-        </button>
-        <button
-          onClick={() => setFilter('ALL')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
-            filter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'
-          }`}
-        >
-          All Assigned ({students.length})
-        </button>
+          <button
+            onClick={() => setFilter('PENDING')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+              filter === 'PENDING' ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-slate-400 hover:text-white'
+            }`}
+          >
+            Pending Production ({pending.length})
+          </button>
+          <button
+            onClick={() => setFilter('DONE')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+              filter === 'DONE' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-900 text-slate-400 hover:text-white'
+            }`}
+          >
+            Completed ({done.length})
+          </button>
+          <button
+            onClick={() => setFilter('ALL')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+              filter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'
+            }`}
+          >
+            All Assigned ({students.length})
+          </button>
+        </div>
+
+        {filter === 'PENDING' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 mr-1 flex items-center gap-1">
+              ✂️ Batch Cut:
+            </span>
+            <button
+              type="button"
+              onClick={() => setCuttingSort((prev) => (prev === 'RIGA_DESC' ? 'NONE' : 'RIGA_DESC'))}
+              className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                cuttingSort === 'RIGA_DESC'
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20 font-black'
+                  : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'
+              }`}
+            >
+              👕 Shirt Length (Riga ↓)
+            </button>
+            <button
+              type="button"
+              onClick={() => setCuttingSort((prev) => (prev === 'WANDO_DESC' ? 'NONE' : 'WANDO_DESC'))}
+              className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                cuttingSort === 'WANDO_DESC'
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20 font-black'
+                  : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'
+              }`}
+            >
+              👖 Trouser Length (Wando ↓)
+            </button>
+            {cuttingSort !== 'NONE' && (
+              <button
+                type="button"
+                onClick={() => setCuttingSort('NONE')}
+                className="text-[11px] text-slate-400 hover:text-rose-400 underline ml-1"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Student Measurement Work Cards (Pure Physical Measurements) */}

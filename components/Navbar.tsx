@@ -9,6 +9,44 @@ export default function Navbar({ role }: { role?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [shopName, setShopName] = useState<string>('');
+
+  useEffect(() => {
+    async function loadShopIdentity() {
+      try {
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // 1. Check user_metadata (set by registration action)
+        const metaBranch = user.user_metadata?.branch_name;
+
+        // 2. Check profile record
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const rawName = metaBranch || profile?.shop_name || profile?.full_name || '';
+
+        if (rawName) {
+          let cleanName = rawName.replace(/Artisan/gi, '').trim();
+          if (!cleanName.toLowerCase().startsWith('mktf')) {
+            cleanName = 'MKTF ' + cleanName;
+          }
+          setShopName(cleanName);
+        }
+      } catch (err) {
+        console.error('Failed to load shop name for WhatsApp link:', err);
+      }
+    }
+
+    loadShopIdentity();
+  }, [pathname]);
 
   useEffect(() => {
     setMounted(true);
@@ -29,6 +67,19 @@ export default function Navbar({ role }: { role?: string }) {
   };
 
   const currentPath = pathname || '';
+
+  // 0. Do not display navbar on login or registration pages
+  const isAuthRoute =
+    currentPath === '/login' ||
+    currentPath.startsWith('/login') ||
+    currentPath === '/staff/login' ||
+    currentPath.startsWith('/staff/login') ||
+    currentPath === '/staff/register' ||
+    currentPath.startsWith('/staff/register');
+
+  if (isAuthRoute) {
+    return null;
+  }
 
   // 1. Customer-Facing Routes
   const isCustomerRoute = 
@@ -141,7 +192,9 @@ export default function Navbar({ role }: { role?: string }) {
             </Link>
 
             <a
-              href="https://wa.me/2348030635560?text=Assalamu%20Alaikum%20Master%20Admin,%20this%20is%20MKTF%20Child%20Shop%20reporting%20from%20production%20floor."
+              href={`https://wa.me/2348030635560?text=${encodeURIComponent(
+                `Assalamu Alaikum Master Admin, this is ${shopName || 'MKTF Child Shop'} reporting from production floor.`
+              )}`}
               target="_blank"
               rel="noopener noreferrer"
               className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition flex items-center gap-1.5 shadow-sm whitespace-nowrap text-xs"
