@@ -82,17 +82,23 @@ export async function addSchoolStudentAction(payload: {
 
   const supabase = await createClient();
 
-  const { error } = await supabase.from('school_students').insert({
+  const { data, error } = await supabase.from('school_students').insert({
     project_id: projectId,
     student_name: studentName.trim(),
-    sets_count: setsCount || 2,
+    sets_count: setsCount || 1,
     kafada,
     hannu,
     riga,
     wando,
     assigned_child_shop_id: assignedChildShopId || null,
     status: 'PENDING',
-  });
+  }).select().single();
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, student: data };
 
   if (error) {
     return { success: false, error: error.message };

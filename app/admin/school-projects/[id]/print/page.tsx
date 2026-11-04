@@ -72,7 +72,16 @@ export default async function SchoolProjectPrintManifestPage({
               return (
                 <tr key={item.id} className={isAlteration ? 'bg-amber-50/80' : ''}>
                   <td className="p-2 border border-black text-center font-bold">{idx + 1}</td>
-                  <td className="p-2 border border-black font-sans font-bold uppercase">{item.student_name}</td>
+                  <td className="p-2 border border-black font-sans font-bold uppercase">
+                    <div className="flex items-center justify-between gap-1">
+                      <span>{item.student_name.replace(/\[BIG\]/gi, '').trim()}</span>
+                      {/\[BIG\]/i.test(item.student_name) && (
+                        <span className="px-1.5 py-0.5 border border-black text-[9px] font-black bg-gray-200 rounded tracking-wider">
+                          [BIG / FULL FIT]
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="p-2 border border-black text-center">{item.sets_count || 2}</td>
                   <td className="p-2 border border-black text-center">{item.kafada}&quot;</td>
                   <td className="p-2 border border-black text-center">{item.hannu}&quot;</td>

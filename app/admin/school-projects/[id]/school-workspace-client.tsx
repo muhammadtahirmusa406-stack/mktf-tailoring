@@ -25,6 +25,14 @@ interface Student {
   created_at: string;
 }
 
+
+export function parseStudentName(rawName: string) {
+  if (!rawName) return { cleanName: '', isBig: false };
+  const isBig = /\[BIG\]/i.test(rawName);
+  const cleanName = rawName.replace(/\[BIG\]/gi, '').replace(/\[\s*\]/g, '').trim();
+  return { cleanName, isBig };
+}
+
 export default function SchoolWorkspaceClient({
   project,
   initialStudents,
@@ -44,7 +52,7 @@ export default function SchoolWorkspaceClient({
   // Edit Student Modal State
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [editName, setEditName] = useState('');
-  const [editSets, setEditSets] = useState(2);
+  const [editSets, setEditSets] = useState(1);
   const [editKafada, setEditKafada] = useState('');
   const [editHannu, setEditHannu] = useState('');
   const [editRiga, setEditRiga] = useState('');
@@ -54,7 +62,7 @@ export default function SchoolWorkspaceClient({
   const openEditModal = (st: Student) => {
     setEditingStudent(st);
     setEditName(st.student_name);
-    setEditSets(st.sets_count || 2);
+    setEditSets(st.sets_count || 1);
     setEditKafada(st.kafada ? String(st.kafada) : '');
     setEditHannu(st.hannu ? String(st.hannu) : '');
     setEditRiga(st.riga ? String(st.riga) : '');
@@ -75,7 +83,7 @@ export default function SchoolWorkspaceClient({
         studentId: editingStudent.id,
         projectId: project.id,
         studentName: editName.trim(),
-        setsCount: Number(editSets) || 2,
+        setsCount: Number(editSets) || 1,
         kafada: Number(editKafada),
         hannu: Number(editHannu),
         riga: Number(editRiga),
@@ -112,7 +120,8 @@ export default function SchoolWorkspaceClient({
 
   // Fast Intake State
   const [studentName, setStudentName] = useState('');
-  const [setsCount, setSetsCount] = useState(2);
+  const [setsCount, setSetsCount] = useState(1);
+  const [isBig, setIsBig] = useState(false);
   const [kafada, setKafada] = useState('');
   const [hannu, setHannu] = useState('');
   const [riga, setRiga] = useState('');
@@ -128,11 +137,12 @@ export default function SchoolWorkspaceClient({
       return;
     }
 
+    const finalName = isBig ? `${studentName.trim()} [BIG]` : studentName.trim();
     setIntakeLoading(true);
     try {
       const res = await addSchoolStudentAction({
         projectId: project.id,
-        studentName: studentName.trim(),
+        studentName: finalName,
         setsCount,
         kafada: Number(kafada),
         hannu: Number(hannu),
@@ -144,8 +154,8 @@ export default function SchoolWorkspaceClient({
         // Optimistically add to state
         setStudents((prev) => [
           {
-            id: Math.random().toString(),
-            student_name: studentName.trim(),
+            id: (res as any)?.student?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString()),
+            student_name: finalName,
             sets_count: setsCount,
             kafada: Number(kafada),
             hannu: Number(hannu),
@@ -161,6 +171,9 @@ export default function SchoolWorkspaceClient({
 
         // Reset measurement fields and refocus name
         setStudentName('');
+        setIsBig(false);
+        setSetsCount(1);
+        setIsBig(false);
         setKafada('');
         setHannu('');
         setRiga('');
@@ -387,6 +400,10 @@ export default function SchoolWorkspaceClient({
               <option value={1}>1 Set</option>
               <option value={2}>2 Sets</option>
               <option value={3}>3 Sets</option>
+              <option value={4}>4 Sets</option>
+              <option value={5}>5 Sets</option>
+              <option value={6}>6 Sets</option>
+              <option value={7}>7 Sets</option>
             </select>
           </div>
 
@@ -442,7 +459,18 @@ export default function SchoolWorkspaceClient({
             />
           </div>
 
-          <div className="col-span-2 sm:col-span-7 flex justify-end">
+          <div>
+            <label className="block text-[10px] font-bold text-amber-300 uppercase mb-1">Body Fit</label>
+            <button
+              type="button"
+              onClick={() => setIsBig(!isBig)}
+              className={`w-full px-2 py-2 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 ${isBig ? 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-sm ring-1 ring-amber-400' : 'bg-slate-950 text-slate-400 border-amber-500/40 hover:border-amber-400'}`}
+            >
+              {isBig ? '🏷️ [BIG]' : 'Regular'}
+            </button>
+          </div>
+
+          <div className="col-span-2 sm:col-span-8 flex justify-end">
             <button
               type="submit"
               disabled={intakeLoading}
@@ -708,11 +736,15 @@ export default function SchoolWorkspaceClient({
                   <select
                     value={editSets}
                     onChange={(e) => setEditSets(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 text-xs text-white focus:outline-none"
                   >
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <option key={n} value={n}>{n} Set{n > 1 ? 's' : ''}</option>
-                    ))}
+                    <option value={1}>1 Set</option>
+                    <option value={2}>2 Sets</option>
+                    <option value={3}>3 Sets</option>
+                    <option value={4}>4 Sets</option>
+                    <option value={5}>5 Sets</option>
+                    <option value={6}>6 Sets</option>
+                    <option value={7}>7 Sets</option>
                   </select>
                 </div>
               </div>
