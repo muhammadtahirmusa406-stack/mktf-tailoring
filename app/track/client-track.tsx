@@ -7,7 +7,17 @@ import ImageLightboxModal from '@/components/ui/image-lightbox-modal';
 import { verifyBankReceipt, VerificationResult } from '@/lib/verify-receipt';
 import { settleBalanceWithReceiptAction } from './actions';
 
-export default function TrackOrderPageClient({ order, rawQuery, searched }: any) {
+export default function TrackOrderPageClient({
+  order,
+  customerOrders = [],
+  rawQuery,
+  searched,
+}: any) {
+  const [activeOrder, setActiveOrder] = useState<any>(order || (customerOrders.length > 0 ? customerOrders[0] : null));
+
+  useEffect(() => {
+    setActiveOrder(order || (customerOrders.length > 0 ? customerOrders[0] : null));
+  }, [order, customerOrders]);
   const [copied, setCopied] = useState(false);
   const [trackingUrl, setTrackingUrl] = useState('');
   const [lightboxImg, setLightboxImg] = useState<{ src: string; title: string } | null>(null);
@@ -20,10 +30,10 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
   const [accountCopied, setAccountCopied] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && order?.order_reference) {
-      setTrackingUrl(`${window.location.origin}/track?ref=${order.order_reference}`);
+    if (typeof window !== 'undefined' && activeOrder?.order_reference) {
+      setTrackingUrl(`${window.location.origin}/track?ref=${activeOrder.order_reference}`);
     }
-  }, [order?.order_reference]);
+  }, [activeOrder?.order_reference]);
 
   const steps = [
     { key: 'CUTTING', label: 'Cutting Table', icon: '✂️' },
@@ -55,12 +65,12 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
     }
   };
 
-  const currentStep = order ? getStepIndex(order.status) : -1;
+  const currentStep = activeOrder ? getStepIndex(activeOrder.status) : -1;
 
-  const totalPrice = Number(order?.total_price) || 0;
-  const amountPaid = Number(order?.amount_paid) || 0;
+  const totalPrice = Number(activeOrder?.total_price) || 0;
+  const amountPaid = Number(activeOrder?.amount_paid) || 0;
   const remainingBalance = Math.max(0, totalPrice - amountPaid);
-  const isFullyPaid = remainingBalance <= 0 || order?.payment_status === '100%_FULLY_PAID';
+  const isFullyPaid = remainingBalance <= 0 || activeOrder?.payment_status === '100%_FULLY_PAID';
 
   const copyLink = () => {
     if (trackingUrl) {
@@ -111,7 +121,7 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
     setSettling(true);
     try {
       const formData = new FormData();
-      formData.append('orderId', order.id);
+      formData.append('orderId', activeOrder.id);
       formData.append('receiptFile', receiptFile);
       formData.append('verificationData', JSON.stringify(verificationResult.extractedData));
 
@@ -167,7 +177,7 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
           </button>
         </form>
 
-        {searched && !order && (
+        {searched && !activeOrder && (
           <div className="p-8 text-center rounded-2xl bg-slate-900/80 border border-rose-500/20 text-slate-300">
             <span className="text-3xl mb-2 block">🔍</span>
             <p className="font-bold text-rose-400">No active tailoring order found</p>
@@ -175,7 +185,41 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
           </div>
         )}
 
-        {order && (
+                  {/* Multiple Orders Selector when searching by Phone */}
+          {customerOrders && customerOrders.length > 1 && (
+            <div className="p-4 rounded-2xl bg-slate-900 border border-amber-500/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                  Found {customerOrders.length} Orders for this Phone Number
+                </span>
+                <span className="text-[11px] text-slate-400">Select an order to view</span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {customerOrders.map((ord: any) => {
+                  const isSelected = activeOrder?.id === ord.id;
+                  return (
+                    <button
+                      key={ord.id}
+                      type="button"
+                      onClick={() => setActiveOrder(ord)}
+                      className={
+                        isSelected
+                          ? "px-3 py-2 rounded-xl text-left border text-xs whitespace-nowrap transition-all bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-md shadow-amber-500/20"
+                          : "px-3 py-2 rounded-xl text-left border text-xs whitespace-nowrap transition-all bg-slate-950/70 text-slate-300 border-slate-800 hover:border-slate-700"
+                      }
+                    >
+                      <div className="font-mono font-bold">{ord.order_reference}</div>
+                      <div className="text-[10px] opacity-80 truncate max-w-[140px]">
+                        {ord.sewing_style_name_at_order || 'Tailoring'} • {ord.status}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {activeOrder && (
           <div className="space-y-6">
             
             {/* Order Identity Card */}
@@ -184,7 +228,7 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
                 <div>
                   <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Order Reference</span>
                   <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-xl font-black text-amber-400 font-mono">{order.order_reference}</span>
+                    <span className="text-xl font-black text-amber-400 font-mono">{activeOrder.order_reference}</span>
                     <button
                       type="button"
                       onClick={copyLink}
@@ -197,27 +241,27 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
 
                 <div className="text-left sm:text-right">
                   <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Client Name</span>
-                  <p className="text-base font-bold text-slate-100 mt-0.5">{order.customer_name}</p>
+                  <p className="text-base font-bold text-slate-100 mt-0.5">{activeOrder.customer_name}</p>
                 </div>
               </div>
 
               {/* Garment Cut & Embroidery Previews */}
-              {(order.sewing_style_image_url || order.design_image_url) && (
+              {(activeOrder.sewing_style_image_url || activeOrder.design_image_url) && (
                 <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center gap-4">
-                  {order.sewing_style_image_url && (
+                  {activeOrder.sewing_style_image_url && (
                     <div className="flex items-center gap-3">
                       <div
-                        onClick={() => setLightboxImg({ src: order.sewing_style_image_url, title: order.sewing_style_name_at_order || 'Sewing Cut' })}
+                        onClick={() => setLightboxImg({ src: activeOrder.sewing_style_image_url, title: activeOrder.sewing_style_name_at_order || 'Sewing Cut' })}
                         className="cursor-pointer relative group rounded-xl overflow-hidden border border-slate-700 w-14 h-14 flex-shrink-0 bg-slate-900"
                       >
-                        <img src={order.sewing_style_image_url} alt="Sewing Cut" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                        <img src={activeOrder.sewing_style_image_url} alt="Sewing Cut" className="w-full h-full object-cover group-hover:scale-105 transition" />
                         <span className="absolute top-0 left-0 bg-slate-900/90 text-[8px] font-bold text-slate-300 px-1 rounded-br">CUT</span>
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-slate-200">{order.sewing_style_name_at_order || 'Garment Cut'}</p>
+                        <p className="text-xs font-bold text-slate-200">{activeOrder.sewing_style_name_at_order || 'Garment Cut'}</p>
                         <button
                           type="button"
-                          onClick={() => setLightboxImg({ src: order.sewing_style_image_url, title: order.sewing_style_name_at_order || 'Sewing Cut' })}
+                          onClick={() => setLightboxImg({ src: activeOrder.sewing_style_image_url, title: activeOrder.sewing_style_name_at_order || 'Sewing Cut' })}
                           className="text-[11px] text-amber-400 hover:underline font-semibold"
                         >
                           View cut photo
@@ -226,20 +270,20 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
                     </div>
                   )}
 
-                  {order.design_image_url && (
+                  {activeOrder.design_image_url && (
                     <div className="flex items-center gap-3">
                       <div
-                        onClick={() => setLightboxImg({ src: order.design_image_url, title: order.design_name || order.design_reference_at_order || 'Design' })}
+                        onClick={() => setLightboxImg({ src: activeOrder.design_image_url, title: activeOrder.design_name || activeOrder.design_reference_at_order || 'Design' })}
                         className="cursor-pointer relative group rounded-xl overflow-hidden border border-amber-500/40 w-14 h-14 flex-shrink-0 bg-slate-900"
                       >
-                        <img src={order.design_image_url} alt="Embroidery Design" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                        <img src={activeOrder.design_image_url} alt="Embroidery Design" className="w-full h-full object-cover group-hover:scale-105 transition" />
                         <span className="absolute top-0 left-0 bg-amber-500 text-[8px] font-bold text-slate-950 px-1 rounded-br">ART</span>
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-slate-200">{order.design_name || order.design_reference_at_order || 'Embroidery Design'}</p>
+                        <p className="text-xs font-bold text-slate-200">{activeOrder.design_name || activeOrder.design_reference_at_order || 'Embroidery Design'}</p>
                         <button
                           type="button"
-                          onClick={() => setLightboxImg({ src: order.design_image_url, title: order.design_name || order.design_reference_at_order || 'Design' })}
+                          onClick={() => setLightboxImg({ src: activeOrder.design_image_url, title: activeOrder.design_name || activeOrder.design_reference_at_order || 'Design' })}
                           className="text-[11px] text-amber-400 hover:underline font-semibold"
                         >
                           View embroidery photo
@@ -322,7 +366,7 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
                       <div>
                         <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider">Instant Balance Settlement & Release</h4>
                         <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                          Remaining balance: <strong className="text-amber-300 font-mono font-black text-sm">₦{remainingBalance.toLocaleString()}</strong>. Settle via bank transfer with automated receipt verification to instantly complete your order.
+                          Remaining balance: <strong className="text-amber-300 font-mono font-black text-sm">₦{remainingBalance.toLocaleString()}</strong>. Settle via bank transfer with automated receipt verification to instantly complete your activeOrder.
                         </p>
                       </div>
                     </div>
@@ -349,19 +393,19 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
                   <span className="text-[10px] text-slate-500 uppercase font-bold block">Sewing Style</span>
-                  <span className="font-bold text-slate-200 mt-0.5 block">{order.sewing_style_name_at_order || 'Custom Cut'}</span>
+                  <span className="font-bold text-slate-200 mt-0.5 block">{activeOrder.sewing_style_name_at_order || 'Custom Cut'}</span>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
                   <span className="text-[10px] text-slate-500 uppercase font-bold block">Embroidery</span>
-                  <span className="font-bold text-slate-200 mt-0.5 block">{order.design_name || order.design_reference_at_order || 'None'}</span>
+                  <span className="font-bold text-slate-200 mt-0.5 block">{activeOrder.design_name || activeOrder.design_reference_at_order || 'None'}</span>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
                   <span className="text-[10px] text-slate-500 uppercase font-bold block">Fabric Source</span>
-                  <span className="font-bold text-slate-200 mt-0.5 block">{order.fabric_source || 'Customer Provided'}</span>
+                  <span className="font-bold text-slate-200 mt-0.5 block">{activeOrder.fabric_source || 'Customer Provided'}</span>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
                   <span className="text-[10px] text-slate-500 uppercase font-bold block">Target Due Date</span>
-                  <span className="font-bold text-slate-200 mt-0.5 block">{order.target_completion_date ? new Date(order.target_completion_date).toLocaleDateString() : 'Standard Atelier'}</span>
+                  <span className="font-bold text-slate-200 mt-0.5 block">{activeOrder.target_completion_date ? new Date(activeOrder.target_completion_date).toLocaleDateString() : 'Standard Atelier'}</span>
                 </div>
               </div>
             </div>
@@ -384,7 +428,7 @@ export default function TrackOrderPageClient({ order, rawQuery, searched }: any)
 
               <div className="space-y-1">
                 <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Atelier Settlement Portal</span>
-                <h3 className="text-xl font-black text-white">Settle Balance for #{order?.order_reference}</h3>
+                <h3 className="text-xl font-black text-white">Settle Balance for #{activeOrder?.order_reference}</h3>
                 <p className="text-xs text-slate-400">
                   Transfer the exact balance to the atelier account and upload the receipt for automated gate release.
                 </p>
