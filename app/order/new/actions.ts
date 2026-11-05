@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { createClient } from '@/utils/supabase-server';
 import crypto from 'crypto';
@@ -311,6 +311,46 @@ export async function submitOrderWithReceiptAction(formData: FormData) {
 
     if (!verification || !verification.referenceId) {
       return { success: false, error: 'Transaction rejected: Receipt verification is required and must contain a valid Reference/Session ID.' };
+    }
+
+    const cleanRefId = String(verification.referenceId).trim();
+
+    // -------------------------------------------------------------
+    // SECURITY CHECK: DEDUPLICATION & REPLAY PREVENTION
+    // -------------------------------------------------------------
+    const { data: duplicateInitial } = await supabase
+      .from('orders')
+      .select('id, order_reference')
+      .eq('transaction_reference', cleanRefId)
+      .maybeSingle();
+
+    if (duplicateInitial) {
+      return {
+        success: false,
+        error: `Security Replay Block: This receipt (Session ID: ${cleanRefId}) was already used for order #${duplicateInitial.order_reference}. You cannot reuse the same receipt.`,
+      };
+    }
+
+    const { data: ordersWithVerifications } = await supabase
+      .from('orders')
+      .select('id, order_reference, payment_verification_data')
+      .not('payment_verification_data', 'is', null)
+      .limit(250);
+
+    const duplicateHistory = (ordersWithVerifications || []).find((ord: any) => {
+      const pvd = ord.payment_verification_data;
+      return (
+        pvd?.referenceId === cleanRefId ||
+        pvd?.final_settlement?.referenceId === cleanRefId ||
+        pvd?.final_settlement?.extractedData?.referenceId === cleanRefId
+      );
+    });
+
+    if (duplicateHistory) {
+      return {
+        success: false,
+        error: `Security Replay Block: This receipt (Session ID: ${cleanRefId}) has already been recorded on order #${duplicateHistory.order_reference}.`,
+      };
     }
 
     let receiptUrl = '';
