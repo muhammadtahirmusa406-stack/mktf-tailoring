@@ -20,7 +20,6 @@ export async function middleware(request: NextRequest) {
             request,
           });
           cookiesToSet.forEach(({ name, value, options }) => {
-            // Strip out persistent multi-day expiration so cookies are strictly session-only
             const sessionOptions = { ...options };
             delete sessionOptions.maxAge;
             delete sessionOptions.expires;
@@ -31,27 +30,55 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // 1. Authenticate user
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
 
-  // 2. Gatekeeper for Master Admin Routes
-  if (path.startsWith('/admin')) {
-    if (!user) {
+  const isStaffRoute =
+    path.startsWith('/shop') ||
+    path.startsWith('/staff/branch-floor') ||
+    path.startsWith('/staff/school-projects');
+
+  const isAdminRoute = path.startsWith('/admin');
+
+  // 1. Unauthenticated gatekeeping
+  if (!user) {
+    if (isAdminRoute) {
       const redirectUrl = new URL('/login', request.url);
       redirectUrl.searchParams.set('next', path);
       return NextResponse.redirect(redirectUrl);
     }
+    if (isStaffRoute) {
+      const redirectUrl = new URL('/staff/login', request.url);
+      redirectUrl.searchParams.set('next', path);
+      return NextResponse.redirect(redirectUrl);
+    }
+    return supabaseResponse;
   }
 
-  // 3. Gatekeeper for Child Shop / Staff Artisan Routes
-  if (path.startsWith('/shop') || path.startsWith('/staff/branch-floor')) {
-    if (!user) {
-      const redirectUrl = new URL('/staff/login', request.url);
-      return NextResponse.redirect(redirectUrl);
+  // 2. Authenticated: Fetch user role from profiles to enforce role boundaries
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const role = (profile?.role || '').toLowerCase();
+  const isAdmin = role === 'admin' || role === 'master_admin';
+
+  // Prevent artisans / branch accounts from accessing admin endpoints
+  if (isAdminRoute && !isAdmin) {
+    return NextResponse.redirect(new URL('/shop/dashboard', request.url));
+  }
+
+  // 3. Prevent logged-in users from viewing login pages again
+  if (path === '/staff/login' || path === '/login') {
+    if (isAdmin) {
+      return NextResponse.redirect(new URL('/admin/orders', request.url));
+    } else {
+      return NextResponse.redirect(new URL('/shop/dashboard', request.url));
     }
   }
 

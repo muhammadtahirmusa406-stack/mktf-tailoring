@@ -30,11 +30,9 @@ export default async function AdminLayout({
   const isMasterAdmin = role === 'admin' || role === 'master_admin';
 
   if (!isMasterAdmin) {
-    // If an artisan tries to access admin routes, route them to their floor
     if (role === 'child_shop') {
       redirect('/staff/branch-floor');
     }
-    // Any other unauthorized role
     redirect('/order/new');
   }
 

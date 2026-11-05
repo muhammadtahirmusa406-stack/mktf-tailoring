@@ -91,7 +91,7 @@ export default function Navbar({ role }: { role?: string }) {
   if (isCustomerRoute) {
     return (
       <header className="bg-slate-950 border-b border-slate-800 text-white sticky top-0 z-50 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="w-full px-4 sm:px-6 h-16 flex items-center justify-between gap-2 overflow-x-hidden">
           <Link href="/order/new" className="flex items-center gap-3 group">
             <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-slate-950 text-xl tracking-wider shadow-md">
               MKTF
@@ -202,8 +202,7 @@ export default function Navbar({ role }: { role?: string }) {
               💬 Contact Admin
             </a>
 
-            
-          </nav>
+              </nav>
         </div>
       </header>
     );
@@ -261,6 +260,8 @@ export default function Navbar({ role }: { role?: string }) {
             <span>+ Intake Form</span>
             <span className="text-xs">↗</span>
           </Link>
+
+            
 
           
         </nav>
