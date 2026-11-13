@@ -1,6 +1,5 @@
 import OutstandingBalanceCard from './outstanding-balance-card';
 import TotalCashCard from './total-cash-card';
-import SignOutButton from '@/components/SignOutButton';
 ﻿import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase-server';
@@ -156,7 +155,6 @@ export default async function AdminDashboardPage() {
           <div>
             <span>MKTF Tailoring Workshop System • Operational Suite</span>
           </div>
-          <SignOutButton />
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ export default function Navbar({ role }: { role?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const [shopName, setShopName] = useState<string>('');
 
   useEffect(() => {
@@ -202,65 +203,144 @@ export default function Navbar({ role }: { role?: string }) {
     );
   }
 
-  // 3. Master Atelier Hub (Admin Only)
-  const adminNavLinks = [
-    { href: '/admin', label: '📊 Dashboard' },
-    { href: '/admin/orders', label: '📦 Workshop Orders' },
-      { href: '/admin/school-projects', label: '🏫 School Projects' },
-    { href: '/admin/shops', label: '🏪 Child Shops' },
-    { href: '/admin/catalog', label: '🎨 Catalog' },
-    { href: '/admin/support', label: '💬 Support Inbox' },
-    { href: '/staff/branch-floor', label: '🧵 Artisan Floor' },
+  // 3. Master Atelier Hub (Admin Only) — Clean Top Bar + Supabase-Style Hover Left Rail
+  const primaryTopLinks = [
+    { href: '/admin', label: 'Dashboard', icon: '📊' },
+    { href: '/admin/orders', label: 'Workshop Orders', icon: '📦' },
+    { href: '/admin/support', label: 'Support Inbox', icon: '💬' },
+  ];
+
+  const sideRailLinks = [
+    { href: '/admin', label: 'Dashboard', icon: '📊' },
+    { href: '/admin/orders', label: 'Workshop Orders', icon: '📦' },
+    { href: '/admin/support', label: 'Support Inbox', icon: '💬' },
+    { href: '/admin/school-projects', label: 'School Projects', icon: '🏫' },
+    { href: '/admin/shops', label: 'Child Shops', icon: '🏪' },
+    { href: '/admin/catalog', label: 'Catalog', icon: '🎨' },
+    { href: '/staff/branch-floor', label: 'Artisan Floor', icon: '🧵' },
   ];
 
   return (
-    <header className="bg-slate-950 border-b border-slate-800 text-white sticky top-0 z-50 shadow-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <Link href="/admin" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-xl bg-amber-500 group-hover:bg-amber-400 flex items-center justify-center font-black text-slate-950 text-xl tracking-wider shadow-md transition">
-            MKTF
-          </div>
-          <div>
-            <span className="font-extrabold tracking-wide text-white block text-sm sm:text-base leading-tight group-hover:text-amber-400 transition">
-              MKTF TAILORING
-            </span>
-            <span className="text-[10px] sm:text-xs text-amber-400 font-semibold uppercase tracking-widest">
-              Master Atelier Hub
-            </span>
-          </div>
-        </Link>
+    <>
+      <header className="bg-slate-950 border-b border-slate-800 text-white sticky top-0 z-50 shadow-md">
+        <div className="w-full px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          <Link href="/admin" className="flex items-center gap-3 group shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 group-hover:bg-amber-400 flex items-center justify-center font-black text-slate-950 text-lg tracking-wider shadow-md transition shrink-0">
+              MKTF
+            </div>
+            <div className="whitespace-nowrap">
+              <span className="font-extrabold tracking-wide text-white block text-sm sm:text-base leading-tight group-hover:text-amber-400 transition">
+                MKTF TAILORING
+              </span>
+              <span className="text-[10px] sm:text-xs text-amber-400 font-semibold uppercase tracking-widest block">
+                Master Atelier Hub
+              </span>
+            </div>
+          </Link>
 
-        <nav className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm font-semibold overflow-x-auto py-1">
-          {adminNavLinks.map((link) => {
-            const isActive = currentPath === link.href || (link.href !== '/admin' && currentPath.startsWith(link.href));
+          <nav className="flex items-center gap-2 text-xs sm:text-sm font-semibold shrink-0">
+            {primaryTopLinks.map((link) => {
+              const isActive =
+                currentPath === link.href ||
+                (link.href !== '/admin' && currentPath.startsWith(link.href));
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`px-3.5 py-1.5 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                  }`}
+                >
+                  <span>{link.icon}</span>
+                  <span className="hidden md:inline">{link.label}</span>
+                </Link>
+              );
+            })}
+
+            <Link
+              href="/order/new"
+              className="ml-1 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition flex items-center gap-1 shadow-sm whitespace-nowrap"
+            >
+              <span>+ Intake Form</span>
+              <span className="text-xs">↗</span>
+            </Link>
+          </nav>
+        </div>
+      </header>
+
+      {/* Supabase-Style Collapsible Left Sidebar Rail (Expands on Cursor Hover) */}
+      <aside
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}
+        aria-label="Admin Atelier Navigation Rail"
+        className={`fixed top-16 left-0 bottom-0 z-40 hidden sm:flex flex-col justify-between bg-slate-950/95 backdrop-blur-md border-r border-slate-800/90 transition-all duration-200 ease-out shadow-2xl overflow-hidden ${
+          sidebarHovered ? 'w-56' : 'w-14'
+        }`}
+      >
+        <div className="py-3 px-2 space-y-1">
+          {sideRailLinks.map((link) => {
+            const isActive =
+              currentPath === link.href ||
+              (link.href !== '/admin' && currentPath.startsWith(link.href));
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
+                title={link.label}
+                className={`flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                   isActive
                     ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
                 }`}
               >
-                {link.label}
+                <span className="text-base w-5 text-center shrink-0">{link.icon}</span>
+                <span
+                  className={`transition-opacity duration-150 ${
+                    sidebarHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  }`}
+                >
+                  {link.label}
+                </span>
               </Link>
             );
           })}
+        </div>
 
+        <div className="py-3 px-2 border-t border-slate-800/80 space-y-1">
           <Link
             href="/order/new"
-            className="ml-2 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition flex items-center gap-1 shadow-sm whitespace-nowrap"
+            title="New Customer Intake"
+            className="flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-xs font-extrabold text-amber-400 hover:bg-amber-500/10 transition whitespace-nowrap"
           >
-            <span>+ Intake Form</span>
-            <span className="text-xs">↗</span>
+            <span className="text-base w-5 text-center shrink-0">➕</span>
+            <span
+              className={`transition-opacity duration-150 ${
+                sidebarHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
+            >
+              New Intake Form
+            </span>
           </Link>
 
-            
-
-          
-        </nav>
-      </div>
-    </header>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            title="Sign Out"
+            className="w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition whitespace-nowrap cursor-pointer"
+          >
+            <span className="text-base w-5 text-center shrink-0">🚪</span>
+            <span
+              className={`transition-opacity duration-150 ${
+                sidebarHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
+            >
+              Sign Out
+            </span>
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

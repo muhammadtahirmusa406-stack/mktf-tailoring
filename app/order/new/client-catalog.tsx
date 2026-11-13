@@ -24,8 +24,8 @@ export default function OrderCatalogClient({
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
 
-  const [selectedStyle, setSelectedStyle] = useState<any>(styles[0] || null);
-  const [selectedDesign, setSelectedDesign] = useState<any>(designs[0] || null);
+  const [selectedStyle, setSelectedStyle] = useState<any>(null);
+  const [selectedDesign, setSelectedDesign] = useState<any>(null);
   const [isCustomDesign, setIsCustomDesign] = useState(false);
   const [customDesignFile, setCustomDesignFile] = useState<File | null>(null);
   const [customDesignPreview, setCustomDesignPreview] = useState<string | null>(null);
@@ -80,6 +80,18 @@ export default function OrderCatalogClient({
   const [errorMessage, setErrorMessage] = useState('');
 
   const handleProceedToStep2 = async () => {
+    if (!selectedStyle) {
+      setErrorMessage('Please select a Tailoring Garment (cutting style) before continuing.');
+      return;
+    }
+    if (!isCustomDesign && !selectedDesign) {
+      setErrorMessage('Please select an Embroidery / Artwork design or upload your own design photo.');
+      return;
+    }
+    if (isCustomDesign && !customDesignFile) {
+      setErrorMessage('Please upload your custom design reference picture before continuing.');
+      return;
+    }
     if (!customerName.trim() || !customerPhone.trim()) {
       setErrorMessage('Please enter your full name and phone number to continue.');
       return;
@@ -544,33 +556,65 @@ export default function OrderCatalogClient({
                 ) : null}
               </div>
 
-              {/* Custom Design Option Banner */}
+              {/* Custom Design Option Banner (High-Visibility Bespoke Upload) */}
               <div
                 onClick={() => {
                   setIsCustomDesign(true);
                   setSelectedDesign(null);
                 }}
                 style={{
-                  border: isCustomDesign ? '2.5px solid #b45309' : '1.5px dashed #cbd5e1',
-                  borderRadius: '14px',
-                  padding: '16px',
-                  marginBottom: '16px',
+                  border: isCustomDesign ? '3px solid #f59e0b' : '2px solid #f59e0b',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  marginBottom: '20px',
                   cursor: 'pointer',
-                  background: isCustomDesign ? '#fffbeb' : '#f8fafc',
+                  background: isCustomDesign
+                    ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
+                    : 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                  boxShadow: isCustomDesign
+                    ? '0 10px 25px rgba(245, 158, 11, 0.22)'
+                    : '0 10px 24px rgba(15, 23, 42, 0.18)',
                   transition: 'all 0.15s ease',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                  <div>
-                    <div style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0f172a' }}>
-                      ✨ Have Your Own Design? Upload Photo for Custom Quote
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: '230px' }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        fontSize: '0.68rem',
+                        fontWeight: 900,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        color: isCustomDesign ? '#92400e' : '#0f172a',
+                        background: '#fbbf24',
+                        padding: '3px 10px',
+                        borderRadius: '9999px',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      ✨ Bespoke Photo Upload • Custom Quote
+                    </span>
+                    <div style={{ fontSize: '1.08rem', fontWeight: 900, color: isCustomDesign ? '#0f172a' : '#ffffff' }}>
+                      Have Your Own Design? Upload Photo for Custom Quote
                     </div>
-                    <p style={{ margin: '4px 0 0', fontSize: '0.83rem', color: '#475569' }}>
+                    <p style={{ margin: '5px 0 0', fontSize: '0.85rem', lineHeight: 1.5, color: isCustomDesign ? '#475569' : '#cbd5e1' }}>
                       Didn&apos;t see your preferred embroidery in our catalogue? Upload your own sample picture and negotiate the price directly in-app before paying any deposit.
                     </p>
                   </div>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: isCustomDesign ? '#ffffff' : '#0f172a', background: isCustomDesign ? '#b45309' : '#e2e8f0', padding: '6px 12px', borderRadius: '9999px' }}>
-                    {isCustomDesign ? '✓ Active' : 'Select Custom'}
+                  <span
+                    style={{
+                      fontSize: '0.82rem',
+                      fontWeight: 900,
+                      color: isCustomDesign ? '#ffffff' : '#0f172a',
+                      background: isCustomDesign ? '#b45309' : '#f59e0b',
+                      padding: '10px 18px',
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 12px rgba(245, 158, 11, 0.35)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {isCustomDesign ? '✓ Custom Design Active' : '📸 Upload Own Design →'}
                   </span>
                 </div>
 

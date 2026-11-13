@@ -459,7 +459,7 @@ export async function submitCustomDesignQuoteAction(formData: FormData) {
 
     if (uploadErr || !uploadData) {
       console.error('Custom design upload error:', uploadErr);
-      return { success: false, error: 'Failed to upload custom design image. Please try again.' };
+      return { success: false, error: 'Failed to upload custom design image: ' + (uploadErr?.message || 'Storage rejected file') };
     }
 
     const { data: publicUrlData } = supabase.storage

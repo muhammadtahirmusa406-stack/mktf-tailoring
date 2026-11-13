@@ -18,6 +18,17 @@ export default function TrackOrderPageClient({
   useEffect(() => {
     setActiveOrder(order || (customerOrders.length > 0 ? customerOrders[0] : null));
   }, [order, customerOrders]);
+
+  // Live auto-refresh while waiting for Master Tailor quote or negotiation reply
+  useEffect(() => {
+    if (!activeOrder?.is_custom_design) return;
+    if (!['PENDING_QUOTE', 'QUOTE_SENT', 'COUNTER_OFFER'].includes(activeOrder.status)) return;
+
+    const timer = setInterval(() => {
+      window.location.reload();
+    }, 12000);
+    return () => clearInterval(timer);
+  }, [activeOrder?.id, activeOrder?.is_custom_design, activeOrder?.status]);
   const [copied, setCopied] = useState(false);
   const [trackingUrl, setTrackingUrl] = useState('');
   const [lightboxImg, setLightboxImg] = useState<{ src: string; title: string } | null>(null);
@@ -473,7 +484,7 @@ export default function TrackOrderPageClient({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                        ✨ Bespoke Custom Design • {activeOrder.status.replace(/_/g, ' ')}
+                        ✨ Bespoke Custom Design • {activeOrder.status.replace(/_/g, ' ')} (Live Sync)
                       </span>
                       <h4 className="text-sm font-black text-white mt-2">
                         {Number(activeOrder.total_price) > 0

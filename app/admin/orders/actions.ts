@@ -320,7 +320,7 @@ export async function sendCustomQuoteAction(
     created_at: new Date().toISOString(),
   };
 
-  const { error: updateErr } = await supabase
+  const { data: updatedRow, error: updateErr } = await supabase
     .from('orders')
     .update({
       total_price: quotedPrice,
@@ -330,10 +330,15 @@ export async function sendCustomQuoteAction(
       negotiation_thread: [...existingThread, newEntry],
       updated_at: new Date().toISOString(),
     })
-    .eq('id', order.id);
+    .eq('id', order.id)
+    .select('id')
+    .maybeSingle();
 
   if (updateErr) {
     return { success: false, error: updateErr.message };
+  }
+  if (!updatedRow) {
+    return { success: false, error: 'Database RLS blocked updating this order. Ensure the Admin UPDATE policy is active.' };
   }
 
   revalidatePath('/admin/orders');

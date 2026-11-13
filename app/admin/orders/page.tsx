@@ -48,7 +48,7 @@ export default async function AdminOrdersPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-6">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold uppercase tracking-wider mb-2">
-              <span>?</span> Master Atelier Production Pipeline
+              <span>⚙️</span> Master Atelier Production Pipeline
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
               Workshop Floor & Branch Routing
