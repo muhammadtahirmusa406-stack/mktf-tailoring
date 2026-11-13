@@ -1,4 +1,4 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 
 export default function CustomerNavbar() {
   return (
@@ -36,14 +36,12 @@ export default function CustomerNavbar() {
             📍 Track Garment
           </Link>
 
-          <a
-            href="https://wa.me/2348030635560?text=Assalamu%20Alaikum%20MKTF%20Tailoring,%20I%20have%20an%20inquiry%20about%20my%20order."
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/contact"
             className="ml-1 sm:ml-2 px-3 sm:px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition flex items-center gap-1.5 shadow-sm whitespace-nowrap text-xs"
           >
-            💬 WhatsApp Help
-          </a>
+            💬 Atelier Help
+          </Link>
         </nav>
 
       </div>

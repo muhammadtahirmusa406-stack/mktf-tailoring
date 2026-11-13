@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -129,14 +129,12 @@ export default function Navbar({ role }: { role?: string }) {
               📍 Track Order
             </Link>
 
-            <a
-              href="https://wa.me/2348030635560?text=Assalamu%20Alaikum%20MKTF%20Tailoring,%20I%20have%20an%20inquiry%20about%20my%20order."
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/contact"
               className="ml-1 sm:ml-2 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition flex items-center gap-1.5 shadow-sm whitespace-nowrap text-xs"
             >
-              💬 WhatsApp Help
-            </a>
+              💬 Atelier Help
+            </Link>
           </nav>
         </div>
       </header>
@@ -191,16 +189,12 @@ export default function Navbar({ role }: { role?: string }) {
               🏫 School Projects
             </Link>
 
-            <a
-              href={`https://wa.me/2348030635560?text=${encodeURIComponent(
-                `Assalamu Alaikum Master Admin, this is ${shopName || 'MKTF Child Shop'} reporting from production floor.`
-              )}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href={`/contact?role=child_shop&name=${encodeURIComponent(shopName || 'MKTF Child Shop')}`}
               className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition flex items-center gap-1.5 shadow-sm whitespace-nowrap text-xs"
             >
-              💬 Contact Admin
-            </a>
+              💬 Support Desk
+            </Link>
 
               </nav>
         </div>
@@ -215,6 +209,7 @@ export default function Navbar({ role }: { role?: string }) {
       { href: '/admin/school-projects', label: '🏫 School Projects' },
     { href: '/admin/shops', label: '🏪 Child Shops' },
     { href: '/admin/catalog', label: '🎨 Catalog' },
+    { href: '/admin/support', label: '💬 Support Inbox' },
     { href: '/staff/branch-floor', label: '🧵 Artisan Floor' },
   ];
 
