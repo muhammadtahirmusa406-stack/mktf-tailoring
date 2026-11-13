@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { updateOrderStatusAction, confirmFinalPaymentAction, assignOrderToShopAction, bulkAdvanceOrdersAction } from './actions';
+import { updateOrderStatusAction, confirmFinalPaymentAction, assignOrderToShopAction, bulkAdvanceOrdersAction , sendCustomQuoteAction } from './actions';
 import ImageLightboxModal from '@/components/ui/image-lightbox-modal';
 
 const STAGES = ['CUTTING', 'EMBROIDERY', 'SEWING', 'READY FOR PICKUP', 'COMPLETED'];
@@ -223,6 +223,103 @@ export default function OrdersProgressionClient({
                       )}
                     </div>
                   </div>
+                  {/* Custom Design Quote & In-App Negotiation Panel */}
+                  {ord.is_custom_design && (ord.status === 'PENDING_QUOTE' || ord.status === 'QUOTE_SENT' || ord.status === 'COUNTER_OFFER' || ord.status === 'QUOTE_ACCEPTED') && (
+                    <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-amber-400 uppercase tracking-wider text-[10px]">
+                          ✨ Custom Design Quote ({ord.quote_status || ord.status})
+                        </span>
+                        {ord.design_image_url && (
+                          <button
+                            type="button"
+                            onClick={() => setLightboxImg({ src: ord.design_image_url, title: `${ord.customer_name} - Custom Design` })}
+                            className="text-[10px] font-bold text-amber-300 underline cursor-pointer"
+                          >
+                            Inspect Sample
+                          </button>
+                        )}
+                      </div>
+
+                      {ord.custom_design_notes && (
+                        <p className="text-[11px] text-slate-300 italic">&ldquo;{ord.custom_design_notes}&rdquo;</p>
+                      )}
+
+                      {Array.isArray(ord.negotiation_thread) && ord.negotiation_thread.length > 0 && (
+                        <div className="max-h-28 overflow-y-auto space-y-1.5 bg-slate-950/70 p-2 rounded-lg border border-slate-800">
+                          {ord.negotiation_thread.map((msg: any, idx: number) => (
+                            <div key={msg.id || idx} className="text-[10px] leading-snug">
+                              <span className={`font-bold uppercase ${msg.sender === 'admin' ? 'text-emerald-400' : 'text-amber-300'}`}>
+                                {msg.sender === 'admin' ? 'Atelier' : 'Client'}
+                              </span>
+                              {msg.amount ? <span className="font-mono font-bold text-white"> (₦{Number(msg.amount).toLocaleString()})</span> : null}
+                              {msg.message ? <span className="text-slate-300">: {msg.message}</span> : null}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          const fd = new FormData(e.currentTarget);
+                          const priceVal = Number(fd.get('quotedPrice'));
+                          const noteVal = String(fd.get('quoteNote') || '');
+                          if (!priceVal || priceVal <= 0) {
+                            alert('Enter a valid quote amount.');
+                            return;
+                          }
+                          setUpdatingId(ord.id);
+                          const res = await sendCustomQuoteAction(ord.id, priceVal, noteVal);
+                          setUpdatingId(null);
+                          if (!res.success) {
+                            alert(res.error || 'Failed to send quote.');
+                          } else {
+                            setOrders((prev) =>
+                              prev.map((item) =>
+                                item.id === ord.id
+                                  ? {
+                                      ...item,
+                                      total_price: priceVal,
+                                      status: 'QUOTE_SENT',
+                                      quote_status: 'QUOTE_SENT',
+                                      negotiation_thread: [
+                                        ...(Array.isArray(item.negotiation_thread) ? item.negotiation_thread : []),
+                                        { sender: 'admin', amount: priceVal, message: noteVal || `Quote set to ₦${priceVal.toLocaleString()}` },
+                                      ],
+                                    }
+                                  : item
+                              )
+                            );
+                          }
+                        }}
+                        className="space-y-1.5 pt-1"
+                      >
+                        <div className="flex gap-1.5">
+                          <input
+                            type="number"
+                            name="quotedPrice"
+                            defaultValue={ord.total_price > 0 ? ord.total_price : ''}
+                            placeholder="Set Quote (₦)"
+                            className="w-1/2 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white font-mono"
+                          />
+                          <input
+                            type="text"
+                            name="quoteNote"
+                            placeholder="Note to client..."
+                            className="w-1/2 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={updatingId === ord.id}
+                          className="w-full py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] uppercase tracking-wider transition cursor-pointer"
+                        >
+                          {updatingId === ord.id ? 'Sending Quote...' : 'Send / Update Quote to Client'}
+                        </button>
+                      </form>
+                    </div>
+                  )}
 
                   {/* Branch Assignment Selector */}
                   <div className="mt-3">

@@ -288,3 +288,55 @@ export async function confirmFullPaymentAction(orderId: string) {
   revalidatePath('/track');
   return { success: true };
 }
+
+// 5. Send or Revise Custom Design Quote (In-App Negotiation)
+export async function sendCustomQuoteAction(
+  orderId: string,
+  quotedPrice: number,
+  note?: string
+): Promise<ActionResult> {
+  if (!orderId || !quotedPrice || quotedPrice <= 0) {
+    return { success: false, error: 'Please enter a valid quoted amount greater than ₦0.' };
+  }
+
+  const supabase = await createClient();
+  const { data: order, error: fetchErr } = await supabase
+    .from('orders')
+    .select('id, negotiation_thread')
+    .eq('id', orderId)
+    .single();
+
+  if (fetchErr || !order) {
+    return { success: false, error: 'Custom order not found.' };
+  }
+
+  const existingThread = Array.isArray(order.negotiation_thread) ? order.negotiation_thread : [];
+  const newEntry = {
+    id: crypto.randomUUID(),
+    sender: 'admin',
+    action: 'quote_sent',
+    amount: quotedPrice,
+    message: (note || '').trim() || `Atelier quote set to ₦${quotedPrice.toLocaleString()}.`,
+    created_at: new Date().toISOString(),
+  };
+
+  const { error: updateErr } = await supabase
+    .from('orders')
+    .update({
+      total_price: quotedPrice,
+      total_price_at_order: quotedPrice,
+      status: 'QUOTE_SENT',
+      quote_status: 'QUOTE_SENT',
+      negotiation_thread: [...existingThread, newEntry],
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', order.id);
+
+  if (updateErr) {
+    return { success: false, error: updateErr.message };
+  }
+
+  revalidatePath('/admin/orders');
+  revalidatePath('/track');
+  return { success: true };
+}

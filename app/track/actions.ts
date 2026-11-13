@@ -200,3 +200,126 @@ export async function submitDeliveryPreferenceAction(params: {
     return { success: false, error: err.message || 'Failed to save delivery preference.' };
   }
 }
+
+export async function respondToCustomQuoteAction(params: {
+  orderReference: string;
+  action: 'counter_offer' | 'accept_quote' | 'message';
+  proposedPrice?: number;
+  message?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc('customer_respond_to_quote', {
+      p_order_reference: params.orderReference,
+      p_action: params.action,
+      p_proposed_price: params.proposedPrice ?? null,
+      p_message: params.message ?? null,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath('/track');
+    revalidatePath('/admin/orders');
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to submit response.' };
+  }
+}
+
+export async function payAcceptedCustomQuoteAction(formData: FormData) {
+  try {
+    const supabase = await createClient();
+    const orderId = formData.get('orderId') as string;
+    const depositPlan = (formData.get('depositPlan') as string) || '50_PERCENT';
+    const file = formData.get('receiptFile') as File | null;
+    const verificationDataJson = formData.get('verificationData') as string;
+
+    if (!orderId || !verificationDataJson) {
+      return { success: false, error: 'Order ID and verified receipt are required.' };
+    }
+
+    const verification = JSON.parse(verificationDataJson);
+    const referenceId = String(verification?.referenceId || '').trim();
+    if (!referenceId) {
+      return { success: false, error: 'Receipt must contain a valid Session/Reference ID.' };
+    }
+
+    const { data: dup } = await supabase
+      .from('orders')
+      .select('id, order_reference')
+      .eq('transaction_reference', referenceId)
+      .maybeSingle();
+
+    if (dup) {
+      return { success: false, error: `Security Replay Block: Receipt ${referenceId} was already used on #${dup.order_reference}.` };
+    }
+
+    const { data: order, error: fetchErr } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+
+    if (fetchErr || !order) {
+      return { success: false, error: 'Order not found.' };
+    }
+
+    const totalPrice = Number(order.total_price) || 0;
+    if (totalPrice <= 0) {
+      return { success: false, error: 'Quote amount has not been set yet.' };
+    }
+
+    const isFull = depositPlan === '100_PERCENT';
+    const expectedAmount = isFull ? totalPrice : Math.round(totalPrice * 0.5);
+    const foundAmount = Number(verification.foundAmount) || 0;
+
+    if (Math.abs(foundAmount - expectedAmount) > 0.01) {
+      return {
+        success: false,
+        error: `Amount mismatch: Receipt shows ₦${foundAmount.toLocaleString()}, expected ₦${expectedAmount.toLocaleString()} (${isFull ? '100%' : '50% deposit'}).`,
+      };
+    }
+
+    let receiptUrl = '';
+    if (file && typeof file.arrayBuffer === 'function') {
+      const fileExt = file.name.split('.').pop() || 'png';
+      const fileName = `custom_deposit_${order.order_reference}_${Date.now()}.${fileExt}`;
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('receipts')
+        .upload(fileName, buffer, { contentType: file.type || 'image/png', upsert: true });
+
+      if (!uploadErr && uploadData) {
+        const { data: pub } = supabase.storage.from('receipts').getPublicUrl(uploadData.path);
+        receiptUrl = pub.publicUrl;
+      }
+    }
+
+    const { error: updateErr } = await supabase
+      .from('orders')
+      .update({
+        amount_paid: expectedAmount,
+        payment_choice: isFull ? '100_PERCENT_FULL' : '50_PERCENT_DEPOSIT',
+        payment_status: isFull ? '100%_FULLY_PAID' : '50%_DEPOSIT_PAID',
+        status: 'CUTTING',
+        quote_status: 'DEPOSIT_PAID',
+        receipt_url: receiptUrl || order.receipt_url,
+        transaction_reference: referenceId,
+        payment_verification_data: verification,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', order.id);
+
+    if (updateErr) {
+      return { success: false, error: updateErr.message };
+    }
+
+    revalidatePath('/track');
+    revalidatePath('/admin/orders');
+    return { success: true, amountPaid: expectedAmount, isFull };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Server error processing deposit.' };
+  }
+}

@@ -4,7 +4,7 @@ import Image from 'next/image';
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { createNewOrderAction, checkReturningCustomerAction, getAtelierSettingsAction, submitOrderWithReceiptAction } from './actions';
+import { createNewOrderAction, checkReturningCustomerAction, getAtelierSettingsAction, submitOrderWithReceiptAction, submitCustomDesignQuoteAction } from './actions';
 
 interface OrderCatalogClientProps {
   initialStyles?: any[] | null;
@@ -26,6 +26,10 @@ export default function OrderCatalogClient({
 
   const [selectedStyle, setSelectedStyle] = useState<any>(styles[0] || null);
   const [selectedDesign, setSelectedDesign] = useState<any>(designs[0] || null);
+  const [isCustomDesign, setIsCustomDesign] = useState(false);
+  const [customDesignFile, setCustomDesignFile] = useState<File | null>(null);
+  const [customDesignPreview, setCustomDesignPreview] = useState<string | null>(null);
+  const [customDesignNotes, setCustomDesignNotes] = useState('');
   const [paymentPlan, setPaymentPlan] = useState<'50_PERCENT' | '100_PERCENT'>('50_PERCENT');
 
   // Measurements Map: { [measurement_definition_id]: integerString }
@@ -328,9 +332,9 @@ export default function OrderCatalogClient({
   }, [categorizedMeasurements, measurements]);
 
   const stylePrice = Number(selectedStyle?.sewing_charge ?? selectedStyle?.base_price ?? 0);
-  const designPrice = Number(selectedDesign?.price ?? selectedDesign?.base_price ?? 0);
-  const totalPrice = stylePrice + designPrice;
-  const payableToday = paymentPlan === '50_PERCENT' ? Math.round(totalPrice * 0.5) : totalPrice;
+  const designPrice = isCustomDesign ? 0 : Number(selectedDesign?.price ?? selectedDesign?.base_price ?? 0);
+  const totalPrice = isCustomDesign ? 0 : stylePrice + designPrice;
+  const payableToday = isCustomDesign ? 0 : (paymentPlan === '50_PERCENT' ? Math.round(totalPrice * 0.5) : totalPrice);
 
   async function handleSubmitOrder() {
     if (!isMeasurementsComplete) {
@@ -338,6 +342,48 @@ export default function OrderCatalogClient({
       return;
     }
     setErrorMessage('');
+
+    if (isCustomDesign) {
+      if (!customDesignFile) {
+        setErrorMessage('Please upload a photo or sketch of your custom design before submitting.');
+        return;
+      }
+      setSubmitting(true);
+      try {
+        const fd = new FormData();
+        fd.append(
+          'orderData',
+          JSON.stringify({
+            customerName,
+            customerPhone,
+            sewingStyleId: selectedStyle?.id,
+            sewingStyleName: selectedStyle?.name || '',
+            customDesignNotes,
+            paymentPlan,
+            measurements: {
+              ...measurements,
+              sleeve_preference: sleevePreference,
+              neck_style: neckStyle,
+              pocket_style: pocketStyle,
+              cuff_style: cuffStyle,
+            },
+          })
+        );
+        fd.append('customDesignFile', customDesignFile);
+        const res = await submitCustomDesignQuoteAction(fd);
+        if (res && res.success && res.orderReference) {
+          router.push(`/track?ref=${res.orderReference}`);
+        } else {
+          setErrorMessage(res?.error || 'Could not submit custom design request.');
+          setSubmitting(false);
+        }
+      } catch (err: any) {
+        setErrorMessage(err.message || 'Submission error');
+        setSubmitting(false);
+      }
+      return;
+    }
+
     // Open in-app settlement modal for bank transfer & OCR receipt verification
     setBankModalOpen(true);
   }
@@ -483,25 +529,102 @@ export default function OrderCatalogClient({
 
             {/* 2. Embroidery / Artwork Selector */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>
                   2. Select Embroidery / Artwork
                 </h2>
-                {selectedDesign && (
+                {isCustomDesign ? (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '3px 10px', borderRadius: '20px' }}>
+                    ✨ Custom Design Quote Selected
+                  </span>
+                ) : selectedDesign ? (
                   <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '3px 10px', borderRadius: '20px' }}>
                     ✓ {selectedDesign.name || selectedDesign.code} Selected
                   </span>
+                ) : null}
+              </div>
+
+              {/* Custom Design Option Banner */}
+              <div
+                onClick={() => {
+                  setIsCustomDesign(true);
+                  setSelectedDesign(null);
+                }}
+                style={{
+                  border: isCustomDesign ? '2.5px solid #b45309' : '1.5px dashed #cbd5e1',
+                  borderRadius: '14px',
+                  padding: '16px',
+                  marginBottom: '16px',
+                  cursor: 'pointer',
+                  background: isCustomDesign ? '#fffbeb' : '#f8fafc',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0f172a' }}>
+                      ✨ Have Your Own Design? Upload Photo for Custom Quote
+                    </div>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.83rem', color: '#475569' }}>
+                      Didn&apos;t see your preferred embroidery in our catalogue? Upload your own sample picture and negotiate the price directly in-app before paying any deposit.
+                    </p>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: isCustomDesign ? '#ffffff' : '#0f172a', background: isCustomDesign ? '#b45309' : '#e2e8f0', padding: '6px 12px', borderRadius: '9999px' }}>
+                    {isCustomDesign ? '✓ Active' : 'Select Custom'}
+                  </span>
+                </div>
+
+                {isCustomDesign && (
+                  <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #fde68a', display: 'grid', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', marginBottom: '6px' }}>
+                        Upload Design Reference Picture / Sketch <span style={{ color: '#dc2626' }}>*</span>
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] || null;
+                          setCustomDesignFile(f);
+                          setCustomDesignPreview(f ? URL.createObjectURL(f) : null);
+                        }}
+                        style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #fcd34d', background: '#ffffff', fontSize: '0.85rem' }}
+                      />
+                      {customDesignPreview && (
+                        <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <img src={customDesignPreview} alt="Custom design preview" style={{ width: '76px', height: '76px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                          <span style={{ fontSize: '0.78rem', color: '#15803d', fontWeight: 700 }}>✓ Design image attached</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', marginBottom: '6px' }}>
+                        Design Description &amp; Thread Preferences
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={customDesignNotes}
+                        onChange={(e) => setCustomDesignNotes(e.target.value)}
+                        placeholder="e.g. Heavy gold thread embroidery on chest, collar, and cuffs..."
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '0.88rem' }}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
                 {designs.map((ds: any) => {
-                  const isSelected = selectedDesign?.id === ds.id;
+                  const isSelected = !isCustomDesign && selectedDesign?.id === ds.id;
                   const price = Number(ds.price ?? ds.base_price ?? 0);
                   return (
                     <div
                       key={ds.id}
-                      onClick={() => setSelectedDesign(ds)}
+                      onClick={() => {
+                        setIsCustomDesign(false);
+                        setSelectedDesign(ds);
+                      }}
                       style={{
                         border: isSelected ? '2.5px solid #0f172a' : '1px solid #e2e8f0',
                         borderRadius: '14px',
@@ -572,25 +695,37 @@ export default function OrderCatalogClient({
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                 <span style={{ color: '#64748b' }}>Embroidery Art:</span>
-                <span style={{ fontWeight: 700, color: '#0f172a' }}>{selectedDesign?.code || selectedDesign?.name || '—'}</span>
+                <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                  {isCustomDesign ? '✨ Custom Upload' : (selectedDesign?.code || selectedDesign?.name || '—')}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                 <span style={{ color: '#64748b' }}>Embroidery Cost:</span>
-                <span style={{ fontWeight: 700, color: '#0f172a' }}>₦{designPrice.toLocaleString()}</span>
+                <span style={{ fontWeight: 700, color: isCustomDesign ? '#b45309' : '#0f172a' }}>
+                  {isCustomDesign ? 'To Be Quoted' : `₦${designPrice.toLocaleString()}`}
+                </span>
               </div>
             </div>
 
             <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '16px', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
-                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#334155' }}>Total Atelier Fee:</span>
-                <span style={{ fontSize: '1.35rem', fontWeight: 900, color: '#059669' }}>₦{totalPrice.toLocaleString()}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Payable (100% / 50%):</span>
-                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0284c7' }}>
-                  ₦{payableToday.toLocaleString()}
-                </span>
-              </div>
+              {isCustomDesign ? (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '12px', fontSize: '0.82rem', color: '#92400e', lineHeight: 1.45 }}>
+                  <strong>Custom Quote Flow:</strong> Submit your measurements &amp; design free now. You will receive our price quote in-app, negotiate if needed, and pay your 50% or 100% deposit once agreed.
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#334155' }}>Total Atelier Fee:</span>
+                    <span style={{ fontSize: '1.35rem', fontWeight: 900, color: '#059669' }}>₦{totalPrice.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Payable (100% / 50%):</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0284c7' }}>
+                      ₦{payableToday.toLocaleString()}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             <button
@@ -1025,7 +1160,7 @@ export default function OrderCatalogClient({
           >
             <span style={{ fontSize: '1.4rem' }}>💬</span>
             <p style={{ margin: 0, fontSize: '0.9rem', color: '#166534', lineHeight: 1.5, fontWeight: 500 }}>
-              <strong>Need a special customization?</strong> If you have any other preferences, feel free to contact the admin via our <strong>WhatsApp Help</strong> button above anytime!
+              <strong>Need a special customization?</strong> Add your notes with your order and message the Master Tailor directly inside your in-app tracking &amp; negotiation portal—no external apps required!
             </p>
           </div>
 
@@ -1188,7 +1323,7 @@ export default function OrderCatalogClient({
                 boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)',
               }}
             >
-              💳 {submitting ? 'Preparing Settlement...' : `Book & Settle ₦${payableToday.toLocaleString()} →`}
+              💳 {submitting ? (isCustomDesign ? 'Submitting Quote Request...' : 'Preparing Settlement...') : isCustomDesign ? 'Submit Custom Design for Quote →' : `Book & Settle ₦${payableToday.toLocaleString()} →`}
             </button>
           </div>
         </section>

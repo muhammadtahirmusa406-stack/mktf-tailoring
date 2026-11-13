@@ -5,7 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import Link from 'next/link';
 import ImageLightboxModal from '@/components/ui/image-lightbox-modal';
 import { verifyBankReceipt, VerificationResult } from '@/lib/verify-receipt';
-import { settleBalanceWithReceiptAction, submitDeliveryPreferenceAction } from './actions';
+import { settleBalanceWithReceiptAction, submitDeliveryPreferenceAction, respondToCustomQuoteAction, payAcceptedCustomQuoteAction } from './actions';
 
 export default function TrackOrderPageClient({
   order,
@@ -36,6 +36,10 @@ export default function TrackOrderPageClient({
   const [deliveryAltPhone, setDeliveryAltPhone] = useState('');
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [savingDelivery, setSavingDelivery] = useState(false);
+  const [counterOfferAmount, setCounterOfferAmount] = useState('');
+  const [negotiationMsg, setNegotiationMsg] = useState('');
+  const [submittingQuoteReply, setSubmittingQuoteReply] = useState(false);
+  const [customDepositPlan, setCustomDepositPlan] = useState<'50_PERCENT' | '100_PERCENT'>('50_PERCENT');
 
   const NIGERIAN_STATES = [
     'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno',
@@ -166,6 +170,13 @@ export default function TrackOrderPageClient({
     }
   };
 
+  const isCustomDepositDue = activeOrder?.is_custom_design && activeOrder?.status === 'QUOTE_ACCEPTED';
+  const modalExpectedAmount = isCustomDepositDue
+    ? (customDepositPlan === '50_PERCENT'
+        ? Math.round(Number(activeOrder?.total_price || 0) * 0.5)
+        : Number(activeOrder?.total_price || 0))
+    : remainingBalance;
+
   const handleReceiptChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -180,7 +191,7 @@ export default function TrackOrderPageClient({
         file,
         '8030635560',
         'Abdulrahman Aliyu',
-        remainingBalance
+        modalExpectedAmount
       );
       setVerificationResult(res);
     } catch (err: any) {
@@ -210,6 +221,19 @@ export default function TrackOrderPageClient({
       formData.append('orderId', activeOrder.id);
       formData.append('receiptFile', receiptFile);
       formData.append('verificationData', JSON.stringify(verificationResult.extractedData));
+
+      if (isCustomDepositDue) {
+        formData.append('depositPlan', customDepositPlan);
+        const res = await payAcceptedCustomQuoteAction(formData);
+        if (!res.success) {
+          alert('Deposit Rejected: ' + res.error);
+          setSettling(false);
+          return;
+        }
+        alert('Deposit verified! Your custom design order has entered the workshop floor (Cutting & Prep).');
+        window.location.reload();
+        return;
+      }
 
       const res = await settleBalanceWithReceiptAction(formData);
       if (!res.success) {
@@ -443,8 +467,172 @@ export default function TrackOrderPageClient({
                   </p>
                 </div>
               </div>
+              {/* Custom Design Quote & In-App Negotiation Card */}
+              {activeOrder.is_custom_design && (activeOrder.status === 'PENDING_QUOTE' || activeOrder.status === 'QUOTE_SENT' || activeOrder.status === 'COUNTER_OFFER' || activeOrder.status === 'QUOTE_ACCEPTED') ? (
+                <div className="mt-4 p-5 rounded-2xl bg-slate-950/95 border border-amber-500/40 space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        ✨ Bespoke Custom Design • {activeOrder.status.replace(/_/g, ' ')}
+                      </span>
+                      <h4 className="text-sm font-black text-white mt-2">
+                        {Number(activeOrder.total_price) > 0
+                          ? `Atelier Quoted Price: ₦${Number(activeOrder.total_price).toLocaleString()}`
+                          : 'Awaiting Master Tailor Price Quote'}
+                      </h4>
+                    </div>
+                    {activeOrder.design_image_url && (
+                      <img
+                        src={activeOrder.design_image_url}
+                        alt="Custom Design"
+                        className="w-14 h-14 rounded-xl object-cover border border-amber-500/40 flex-shrink-0"
+                      />
+                    )}
+                  </div>
 
-              {!isFullyPaid ? (
+                  {/* In-App Negotiation Thread */}
+                  {Array.isArray(activeOrder.negotiation_thread) && activeOrder.negotiation_thread.length > 0 && (
+                    <div className="space-y-2 max-h-48 overflow-y-auto p-3 rounded-xl bg-slate-900 border border-slate-800">
+                      {activeOrder.negotiation_thread.map((item: any, i: number) => (
+                        <div key={item.id || i} className={`text-xs p-2.5 rounded-lg ${item.sender === 'admin' ? 'bg-emerald-950/50 border border-emerald-500/20 text-emerald-100' : 'bg-slate-800/80 text-slate-200'}`}>
+                          <div className="flex items-center justify-between text-[10px] font-bold uppercase mb-0.5">
+                            <span className={item.sender === 'admin' ? 'text-emerald-400' : 'text-amber-400'}>
+                              {item.sender === 'admin' ? 'Master Tailor' : 'You'}
+                            </span>
+                            {item.amount ? <span className="font-mono text-white">₦{Number(item.amount).toLocaleString()}</span> : null}
+                          </div>
+                          {item.message && <p className="m-0 leading-relaxed">{item.message}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Counter-Offer / Message Controls */}
+                  {activeOrder.status !== 'QUOTE_ACCEPTED' && (
+                    <div className="space-y-2.5 pt-2 border-t border-slate-800">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          value={counterOfferAmount}
+                          onChange={(e) => setCounterOfferAmount(e.target.value)}
+                          placeholder="Your Counter-Offer (₦)..."
+                          className="rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white font-mono focus:border-amber-500 focus:outline-none"
+                        />
+                        <input
+                          type="text"
+                          value={negotiationMsg}
+                          onChange={(e) => setNegotiationMsg(e.target.value)}
+                          placeholder="Add note or question for tailor..."
+                          className="rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={submittingQuoteReply}
+                          onClick={async () => {
+                            const amt = Number(counterOfferAmount);
+                            if (!amt || amt <= 0) {
+                              alert('Please enter your counter-offer amount in Naira.');
+                              return;
+                            }
+                            setSubmittingQuoteReply(true);
+                            const res = await respondToCustomQuoteAction({
+                              orderReference: activeOrder.order_reference,
+                              action: 'counter_offer',
+                              proposedPrice: amt,
+                              message: negotiationMsg,
+                            });
+                            setSubmittingQuoteReply(false);
+                            if (!res.success) {
+                              alert(res.error || 'Failed to send counter-offer.');
+                            } else {
+                              setActiveOrder((prev: any) => ({
+                                ...prev,
+                                status: 'COUNTER_OFFER',
+                                quote_status: 'COUNTER_OFFER',
+                                negotiation_thread: [
+                                  ...(Array.isArray(prev.negotiation_thread) ? prev.negotiation_thread : []),
+                                  { sender: 'customer', action: 'counter_offer', amount: amt, message: negotiationMsg },
+                                ],
+                              }));
+                              setCounterOfferAmount('');
+                              setNegotiationMsg('');
+                            }
+                          }}
+                          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs font-bold cursor-pointer"
+                        >
+                          💬 Send Counter-Offer
+                        </button>
+
+                        {Number(activeOrder.total_price) > 0 && (
+                          <button
+                            type="button"
+                            disabled={submittingQuoteReply}
+                            onClick={async () => {
+                              setSubmittingQuoteReply(true);
+                              const res = await respondToCustomQuoteAction({
+                                orderReference: activeOrder.order_reference,
+                                action: 'accept_quote',
+                                proposedPrice: Number(activeOrder.total_price),
+                                message: `Accepted quote of ₦${Number(activeOrder.total_price).toLocaleString()}.`,
+                              });
+                              setSubmittingQuoteReply(false);
+                              if (!res.success) {
+                                alert(res.error || 'Could not accept quote.');
+                              } else {
+                                setActiveOrder((prev: any) => ({
+                                  ...prev,
+                                  status: 'QUOTE_ACCEPTED',
+                                  quote_status: 'ACCEPTED',
+                                }));
+                              }
+                            }}
+                            className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black cursor-pointer"
+                          >
+                            ✓ Accept Quote (₦{Number(activeOrder.total_price).toLocaleString()})
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Deposit Selection (50% or 100%) Once Quote Accepted */}
+                  {activeOrder.status === 'QUOTE_ACCEPTED' && Number(activeOrder.total_price) > 0 && (
+                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-3">
+                      <div className="text-xs font-black text-emerald-300 uppercase">
+                        ✓ Quote Accepted — Choose Your Deposit Tier to Start Sewing
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-xs text-white">
+                        <label className="flex items-center gap-2 cursor-pointer font-bold">
+                          <input
+                            type="radio"
+                            checked={customDepositPlan === '50_PERCENT'}
+                            onChange={() => setCustomDepositPlan('50_PERCENT')}
+                          />
+                          50% Deposit (₦{Math.round(Number(activeOrder.total_price) * 0.5).toLocaleString()})
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer font-bold">
+                          <input
+                            type="radio"
+                            checked={customDepositPlan === '100_PERCENT'}
+                            onChange={() => setCustomDepositPlan('100_PERCENT')}
+                          />
+                          100% Full Payment (₦{Number(activeOrder.total_price).toLocaleString()})
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSettleModalOpen(true)}
+                        className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider cursor-pointer"
+                      >
+                        💳 Upload Transfer Receipt (₦{(customDepositPlan === '50_PERCENT' ? Math.round(Number(activeOrder.total_price) * 0.5) : Number(activeOrder.total_price)).toLocaleString()}) →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : !isFullyPaid ? (
                 <div className="mt-4 p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 to-emerald-500/10 border border-amber-500/40 space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
@@ -679,7 +867,7 @@ export default function TrackOrderPageClient({
               <div className="mt-4 p-4 rounded-xl bg-slate-950 border border-amber-500/30 flex items-center justify-between">
                 <div>
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Exact Balance Due</span>
-                  <div className="text-2xl font-black text-amber-400">₦{remainingBalance.toLocaleString()}</div>
+                  <div className="text-2xl font-black text-amber-400">₦{modalExpectedAmount.toLocaleString()}</div>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] font-bold text-slate-400 uppercase block">Order Cut</span>

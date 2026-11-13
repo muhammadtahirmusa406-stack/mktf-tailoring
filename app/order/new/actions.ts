@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { createClient } from '@/utils/supabase-server';
 import crypto from 'crypto';
@@ -428,5 +428,101 @@ export async function submitOrderWithReceiptAction(formData: FormData) {
   } catch (err: any) {
     console.error('submitOrderWithReceiptAction error:', err);
     return { success: false, error: err.message || 'Server error while completing order.' };
+  }
+}
+
+export async function submitCustomDesignQuoteAction(formData: FormData) {
+  try {
+    const supabase = await createClient();
+    const orderDataJson = formData.get('orderData') as string;
+    const designFile = formData.get('customDesignFile') as File | null;
+
+    if (!orderDataJson) {
+      return { success: false, error: 'Missing custom order details.' };
+    }
+
+    const payload = JSON.parse(orderDataJson);
+    if (!designFile || typeof designFile.arrayBuffer !== 'function' || designFile.size === 0) {
+      return { success: false, error: 'Please upload a photo or sketch of your custom design.' };
+    }
+
+    const fileExt = designFile.name.split('.').pop() || 'jpg';
+    const fileName = `custom_designs/design_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+    const buffer = Buffer.from(await designFile.arrayBuffer());
+
+    const { data: uploadData, error: uploadErr } = await supabase.storage
+      .from('receipts')
+      .upload(fileName, buffer, {
+        contentType: designFile.type || 'image/jpeg',
+        upsert: true,
+      });
+
+    if (uploadErr || !uploadData) {
+      console.error('Custom design upload error:', uploadErr);
+      return { success: false, error: 'Failed to upload custom design image. Please try again.' };
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('receipts')
+      .getPublicUrl(uploadData.path);
+
+    const customDesignUrl = publicUrlData.publicUrl;
+    const orderRef = 'ORD-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    let styleName = payload.sewingStyleName || null;
+    if (payload.sewingStyleId && !styleName) {
+      const { data: s } = await supabase.from('sewing_styles').select('name').eq('id', payload.sewingStyleId).maybeSingle();
+      if (s) styleName = s.name;
+    }
+
+    const initialNote = (payload.customDesignNotes || '').trim();
+    const initialThread = [
+      {
+        id: crypto.randomUUID(),
+        sender: 'customer',
+        action: 'quote_requested',
+        amount: null,
+        message: initialNote || 'Submitted custom design reference for atelier pricing.',
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    const { data: newOrder, error: insertErr } = await supabase
+      .from('orders')
+      .insert({
+        order_reference: orderRef,
+        customer_name: (payload.customerName || '').trim(),
+        customer_phone: (payload.customerPhone || '').trim(),
+        sewing_style_id: payload.sewingStyleId,
+        sewing_style_name_at_order: styleName,
+        design_reference_at_order: 'CUSTOM-DESIGN',
+        design_name_at_order: 'Bespoke Custom Design',
+        design_image_url: customDesignUrl,
+        is_custom_design: true,
+        custom_design_notes: initialNote || null,
+        quote_status: 'PENDING_QUOTE',
+        negotiation_thread: initialThread,
+        customer_measurements: payload.measurements,
+        total_price: 0,
+        amount_paid: 0,
+        payment_choice: payload.paymentPlan === '100_PERCENT' ? '100_PERCENT_FULL' : '50_PERCENT_DEPOSIT',
+        payment_status: 'AWAITING_QUOTE',
+        status: 'PENDING_QUOTE',
+      })
+      .select('id, order_reference')
+      .single();
+
+    if (insertErr || !newOrder) {
+      console.error('Custom quote order insert error:', insertErr);
+      return { success: false, error: insertErr?.message || 'Could not submit custom design request.' };
+    }
+
+    return {
+      success: true,
+      orderReference: newOrder.order_reference,
+    };
+  } catch (err: any) {
+    console.error('submitCustomDesignQuoteAction error:', err);
+    return { success: false, error: err.message || 'Server error while submitting custom design.' };
   }
 }
