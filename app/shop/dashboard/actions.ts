@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { createClient } from '@/utils/supabase-server';
 import { revalidatePath } from 'next/cache';
@@ -36,16 +36,21 @@ export async function updateShopOrderStatusAction(
       return { success: false, error: 'Order not found in workshop records' };
     }
 
-    // 2. Financial delivery gate check
+    // 2. Financial gate check before Ready for Pickup / Handover
     const normalizedStatus = nextStatus.trim().toUpperCase();
-    if (normalizedStatus === 'COMPLETED' || normalizedStatus === 'DELIVERED') {
+    if (
+      normalizedStatus === 'READY FOR PICKUP' ||
+      normalizedStatus === 'READY' ||
+      normalizedStatus === 'COMPLETED' ||
+      normalizedStatus === 'DELIVERED'
+    ) {
       const balance = Number(order.total_price) - Number(order.amount_paid);
       const isPaid = order.payment_status === '100%_FULLY_PAID' || balance <= 0;
 
       if (!isPaid) {
         return {
           success: false,
-          error: `Handover locked: Outstanding balance of ₦${balance.toLocaleString()} must be settled first.`
+          error: `Gate locked: Outstanding balance of ₦${balance.toLocaleString()} must be settled before Ready for Pickup.`
         };
       }
     }

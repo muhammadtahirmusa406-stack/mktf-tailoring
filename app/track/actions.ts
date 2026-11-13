@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
@@ -115,10 +115,10 @@ export async function settleBalanceWithReceiptAction(formData: FormData) {
       }
     }
 
-    // Auto gate unlock: If status is READY FOR PICKUP, unlock gate to COMPLETED
+    // Debt settlement unlocks progression to READY FOR PICKUP (does not skip to COMPLETED)
     const currentStatus = (order.status || '').toUpperCase().trim();
-    const shouldAutoComplete = currentStatus === 'READY FOR PICKUP' || currentStatus === 'READY';
-    const nextStatus = shouldAutoComplete ? 'COMPLETED' : order.status;
+    const shouldAutoComplete = false;
+    const nextStatus = currentStatus === 'SEWING' ? 'READY FOR PICKUP' : order.status;
 
     // Merge audit verification payload into payment_verification_data
     const updatedVerificationPayload = {
@@ -162,5 +162,41 @@ export async function settleBalanceWithReceiptAction(formData: FormData) {
   } catch (err: any) {
     console.error('settleBalanceWithReceiptAction error:', err);
     return { success: false, error: err.message || 'Server error while processing balance settlement.' };
+  }
+}
+
+export async function submitDeliveryPreferenceAction(params: {
+  orderReference: string;
+  deliveryMethod: 'pickup' | 'delivery';
+  deliveryState?: string;
+  deliveryLga?: string;
+  deliveryAddress?: string;
+  deliveryPhone?: string;
+  deliveryAltPhone?: string;
+  deliveryNotes?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc('submit_order_delivery_preference', {
+      p_order_reference: params.orderReference,
+      p_delivery_method: params.deliveryMethod,
+      p_delivery_state: params.deliveryMethod === 'delivery' ? (params.deliveryState || '').trim() : null,
+      p_delivery_lga: params.deliveryMethod === 'delivery' ? (params.deliveryLga || '').trim() : null,
+      p_delivery_address: params.deliveryMethod === 'delivery' ? (params.deliveryAddress || '').trim() : null,
+      p_delivery_phone: params.deliveryMethod === 'delivery' ? (params.deliveryPhone || '').trim() : null,
+      p_delivery_alt_phone: params.deliveryMethod === 'delivery' ? (params.deliveryAltPhone || '').trim() : null,
+      p_delivery_notes: params.deliveryMethod === 'delivery' ? (params.deliveryNotes || '').trim() : null,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath('/track');
+    revalidatePath('/admin/orders');
+    revalidatePath('/shop/dashboard');
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to save delivery preference.' };
   }
 }

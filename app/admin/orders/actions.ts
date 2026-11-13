@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { createClient } from '@/utils/supabase-server';
 import { revalidatePath } from 'next/cache';
@@ -29,16 +29,21 @@ export async function updateOrderStatusAction(
     return { success: false, error: 'Order not found in workshop records.' };
   }
 
-  // Delivery Gate: block COMPLETED unless 100% paid
+  // Financial Gate: block READY FOR PICKUP and COMPLETED unless 100% paid
   const normalizedStatus = nextStatus.trim().toUpperCase();
-  if (normalizedStatus === 'COMPLETED' || normalizedStatus === 'DELIVERED') {
+  if (
+    normalizedStatus === 'READY FOR PICKUP' ||
+    normalizedStatus === 'READY' ||
+    normalizedStatus === 'COMPLETED' ||
+    normalizedStatus === 'DELIVERED'
+  ) {
     const balance = Number(order.total_price) - Number(order.amount_paid);
     const isPaid = order.payment_status === '100%_FULLY_PAID' || balance <= 0;
 
     if (!isPaid) {
       return {
         success: false,
-        error: `Delivery Gate Active: Order cannot be completed until remaining balance of ₦${balance.toLocaleString()} is settled in full.`,
+        error: `Financial Gate Active: Customer still owes ₦${balance.toLocaleString()}. Settle balance between Tailoring & Stitch and Ready for Pickup.`,
       };
     }
   }
@@ -174,12 +179,17 @@ export async function bulkAdvanceOrdersAction(
         continue;
       }
 
-      // Delivery Gate enforcement
-      if (nextStage === 'COMPLETED' || nextStage === 'DELIVERED') {
+      // Financial Gate enforcement before Ready for Pickup / Handover
+      if (
+        nextStage === 'READY FOR PICKUP' ||
+        nextStage === 'READY' ||
+        nextStage === 'COMPLETED' ||
+        nextStage === 'DELIVERED'
+      ) {
         const balance = Number(ord.total_price) - Number(ord.amount_paid);
         const isPaid = ord.payment_status === '100%_FULLY_PAID' || balance <= 0;
         if (!isPaid) {
-          errors.push(ord.order_reference + ': Delivery blocked (₦' + balance.toLocaleString() + ' unpaid)');
+          errors.push(ord.order_reference + ': Blocked before Ready for Pickup (₦' + balance.toLocaleString() + ' unpaid)');
           continue;
         }
       }
@@ -225,7 +235,7 @@ export async function bulkUpdateOrderStatusAction(formData: FormData): Promise<v
   if (!matchingOrders || matchingOrders.length === 0) return;
 
   for (const ord of matchingOrders) {
-    if (targetStatus === 'COMPLETED') {
+    if (targetStatus === 'READY FOR PICKUP' || targetStatus === 'READY' || targetStatus === 'COMPLETED') {
       const balance = Number(ord.total_price) - Number(ord.amount_paid);
       const isPaid = ord.payment_status === '100%_FULLY_PAID' || balance <= 0;
       if (!isPaid) continue;

@@ -1,11 +1,11 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import Link from 'next/link';
 import ImageLightboxModal from '@/components/ui/image-lightbox-modal';
 import { verifyBankReceipt, VerificationResult } from '@/lib/verify-receipt';
-import { settleBalanceWithReceiptAction } from './actions';
+import { settleBalanceWithReceiptAction, submitDeliveryPreferenceAction } from './actions';
 
 export default function TrackOrderPageClient({
   order,
@@ -28,6 +28,92 @@ export default function TrackOrderPageClient({
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [settling, setSettling] = useState(false);
   const [accountCopied, setAccountCopied] = useState(false);
+  const [deliveryFormOpen, setDeliveryFormOpen] = useState(false);
+  const [deliveryState, setDeliveryState] = useState('');
+  const [deliveryLga, setDeliveryLga] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryPhone, setDeliveryPhone] = useState('');
+  const [deliveryAltPhone, setDeliveryAltPhone] = useState('');
+  const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [savingDelivery, setSavingDelivery] = useState(false);
+
+  const NIGERIAN_STATES = [
+    'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno',
+    'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu', 'FCT - Abuja', 'Gombe',
+    'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara', 'Lagos',
+    'Nasarawa', 'Niger', 'Ogun', 'Ondo', 'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto',
+    'Taraba', 'Yobe', 'Zamfara'
+  ];
+
+  useEffect(() => {
+    setDeliveryFormOpen(activeOrder?.delivery_method === 'delivery');
+    setDeliveryState(activeOrder?.delivery_state || '');
+    setDeliveryLga(activeOrder?.delivery_lga || '');
+    // Extract street portion if combined address was previously stored
+    const rawAddr = activeOrder?.delivery_address || '';
+    const streetOnly = activeOrder?.delivery_lga && rawAddr.includes(`, ${activeOrder.delivery_lga} LGA`)
+      ? rawAddr.split(`, ${activeOrder.delivery_lga} LGA`)[0]
+      : rawAddr;
+    setDeliveryAddress(streetOnly);
+    setDeliveryPhone(activeOrder?.delivery_phone || activeOrder?.customer_phone || '');
+    setDeliveryAltPhone(activeOrder?.delivery_alt_phone || '');
+    setDeliveryNotes(activeOrder?.delivery_notes || '');
+  }, [activeOrder?.id]);
+
+  const handleDeliverySubmit = async (method: 'pickup' | 'delivery') => {
+    if (!activeOrder?.order_reference) return;
+    if (method === 'delivery') {
+      if (!deliveryState.trim()) {
+        alert('Please select your State.');
+        return;
+      }
+      if (!deliveryLga.trim()) {
+        alert('Please enter your LGA (Local Government Area).');
+        return;
+      }
+      if (!deliveryAddress.trim()) {
+        alert('Please enter your street address.');
+        return;
+      }
+    }
+    setSavingDelivery(true);
+    try {
+      const res = await submitDeliveryPreferenceAction({
+        orderReference: activeOrder.order_reference,
+        deliveryMethod: method,
+        deliveryState,
+        deliveryLga,
+        deliveryAddress,
+        deliveryPhone,
+        deliveryAltPhone,
+        deliveryNotes,
+      });
+      if (!res.success) {
+        alert(res.error || 'Could not save delivery preference.');
+        return;
+      }
+      const formattedFullAddress =
+        method === 'delivery'
+          ? `${deliveryAddress.trim()}, ${deliveryLga.trim()} LGA, ${deliveryState.trim()} State`
+          : null;
+      setActiveOrder((prev: any) => ({
+        ...prev,
+        delivery_method: method,
+        delivery_state: method === 'delivery' ? deliveryState.trim() : null,
+        delivery_lga: method === 'delivery' ? deliveryLga.trim() : null,
+        delivery_address: formattedFullAddress,
+        delivery_phone: method === 'delivery' ? (deliveryPhone.trim() || prev.customer_phone) : null,
+        delivery_alt_phone: method === 'delivery' ? (deliveryAltPhone.trim() || null) : null,
+        delivery_notes: method === 'delivery' ? deliveryNotes.trim() : null,
+        delivery_requested_at: new Date().toISOString(),
+      }));
+      if (method === 'pickup') {
+        setDeliveryFormOpen(false);
+      }
+    } finally {
+      setSavingDelivery(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined' && activeOrder?.order_reference) {
@@ -364,9 +450,11 @@ export default function TrackOrderPageClient({
                     <div className="flex items-start gap-3">
                       <span className="text-2xl">⚡</span>
                       <div>
-                        <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider">Instant Balance Settlement & Release</h4>
+                        <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                          {currentStep >= 2 ? 'Ready for Pickup Gate — Settle Balance to Unlock' : 'Pre-Pickup Balance Settlement'}
+                        </h4>
                         <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                          Remaining balance: <strong className="text-amber-300 font-mono font-black text-sm">₦{remainingBalance.toLocaleString()}</strong>. Settle via bank transfer with automated receipt verification to instantly complete your activeOrder.
+                          Remaining balance: <strong className="text-amber-300 font-mono font-black text-sm">₦{remainingBalance.toLocaleString()}</strong>. Settle via bank transfer with automated receipt verification between <strong>Tailoring &amp; Stitch</strong> and <strong>Ready for Pickup</strong>.
                         </p>
                       </div>
                     </div>
@@ -380,9 +468,162 @@ export default function TrackOrderPageClient({
                     <span>💳</span> Settle Balance (₦{remainingBalance.toLocaleString()}) Online →
                   </button>
                 </div>
+              ) : currentStep === 3 ? (
+                <div className="mt-4 p-5 rounded-2xl bg-slate-950/90 border border-emerald-500/30 space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-emerald-400 text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                        <span>✓</span> 100% Settled &amp; Ready for Pickup — Optional Delivery Request
+                      </div>
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                        Your garment is ready! Request optional doorstep delivery below, or skip this form to collect it from our workshop yourself.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryFormOpen(true)}
+                      className={`py-2.5 px-4 rounded-xl text-xs font-black transition cursor-pointer border ${
+                        deliveryFormOpen || activeOrder.delivery_method === 'delivery'
+                          ? 'bg-amber-500 text-slate-950 border-amber-400'
+                          : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/40'
+                      }`}
+                    >
+                      🚚 Request Delivery (Optional)
+                    </button>
+                    <button
+                      type="button"
+                      disabled={savingDelivery}
+                      onClick={() => handleDeliverySubmit('pickup')}
+                      className={`py-2.5 px-4 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                        !deliveryFormOpen && activeOrder.delivery_method !== 'delivery'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      🏪 I Will Pick Up at Shop Myself
+                    </button>
+                  </div>
+
+                  {deliveryFormOpen && (
+                    <div className="pt-3 border-t border-slate-800 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] font-bold uppercase text-slate-400 block mb-1">
+                            State <span className="text-rose-400">*</span>
+                          </label>
+                          <select
+                            value={deliveryState}
+                            onChange={(e) => setDeliveryState(e.target.value)}
+                            className="w-full rounded-xl bg-slate-900 border border-slate-700 px-3.5 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none"
+                          >
+                            <option value="">-- Select State --</option>
+                            {NIGERIAN_STATES.map((st) => (
+                              <option key={st} value={st}>{st}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold uppercase text-slate-400 block mb-1">
+                            LGA (Local Government Area) <span className="text-rose-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={deliveryLga}
+                            onChange={(e) => setDeliveryLga(e.target.value)}
+                            placeholder="e.g. Dutse, Tarauni, Sabon Gari..."
+                            className="w-full rounded-xl bg-slate-900 border border-slate-700 px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold uppercase text-slate-400 block mb-1">
+                          Street Address &amp; Landmark <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={deliveryAddress}
+                          onChange={(e) => setDeliveryAddress(e.target.value)}
+                          placeholder="House number, street name, area / nearest landmark..."
+                          className="w-full rounded-xl bg-slate-900 border border-slate-700 px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] font-bold uppercase text-slate-400 block mb-1">
+                            Primary Phone Number
+                          </label>
+                          <input
+                            type="tel"
+                            value={deliveryPhone}
+                            onChange={(e) => setDeliveryPhone(e.target.value)}
+                            placeholder="Your primary phone number"
+                            className="w-full rounded-xl bg-slate-900 border border-slate-700 px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-bold uppercase text-slate-400 block mb-1">
+                            In-Case / Alternative Phone (Optional)
+                          </label>
+                          <input
+                            type="tel"
+                            value={deliveryAltPhone}
+                            onChange={(e) => setDeliveryAltPhone(e.target.value)}
+                            placeholder="Backup number in case primary is unreachable"
+                            className="w-full rounded-xl bg-slate-900 border border-slate-700 px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold uppercase text-slate-400 block mb-1">
+                          Additional Dispatch Note (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={deliveryNotes}
+                          onChange={(e) => setDeliveryNotes(e.target.value)}
+                          placeholder="Preferred delivery time or extra directions..."
+                          className="w-full rounded-xl bg-slate-900 border border-slate-700 px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={savingDelivery}
+                        onClick={() => handleDeliverySubmit('delivery')}
+                        className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs uppercase tracking-wider transition cursor-pointer"
+                      >
+                        {savingDelivery
+                          ? 'Saving Delivery Details...'
+                          : activeOrder.delivery_method === 'delivery'
+                          ? '✓ Update Delivery Details'
+                          : 'Confirm Delivery Request →'}
+                      </button>
+                    </div>
+                  )}
+
+                  {activeOrder.delivery_method === 'delivery' && activeOrder.delivery_address && (
+                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 space-y-1">
+                      <div><strong>✓ Delivery Requested:</strong> {activeOrder.delivery_address}</div>
+                      <div className="text-[11px] text-amber-300/90 font-mono">
+                        Primary Tel: {activeOrder.delivery_phone || activeOrder.customer_phone}
+                        {activeOrder.delivery_alt_phone ? ` • In-Case Tel: ${activeOrder.delivery_alt_phone}` : ''}
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
-                <div className="mt-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-2">
-                  <span>✓</span> This order is 100% fully settled. Financial delivery gates unlocked.
+                <div className="mt-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <span>✓ This order is 100% fully settled. Financial delivery gates unlocked.</span>
+                  {activeOrder.delivery_method === 'delivery' && (
+                    <span className="text-amber-300 font-semibold">🚚 Handover Mode: Delivery</span>
+                  )}
                 </div>
               )}
             </div>

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -245,18 +245,54 @@ export default function OrdersProgressionClient({
                   </div>
                 </div>
 
-                {/* Price and Balance */}
-                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Price</span>
-                    <span className="font-bold text-slate-200 font-mono">₦{Number(ord.total_price || 0).toLocaleString()}</span>
+                {/* Price, Balance & Delivery Request */}
+                <div className="pt-2 border-t border-slate-800/80 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Price</span>
+                      <span className="font-bold text-slate-200 font-mono">₦{Number(ord.total_price || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Balance Due</span>
+                      <span className={`font-bold ${isPaid ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isPaid ? '✓ 100% Settled' : `₦${balance.toLocaleString()} Due`}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Balance Due</span>
-                    <span className={`font-bold ${isPaid ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {isPaid ? '✓ 100% Settled' : `₦${balance.toLocaleString()} Due`}
-                    </span>
-                  </div>
+
+                  {(ord.status === 'READY FOR PICKUP' || ord.status === 'COMPLETED') && (
+                    ord.delivery_method === 'delivery' ? (
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-100 space-y-1">
+                      <div className="font-black text-amber-400 text-[11px] uppercase tracking-wider">
+                        🚚 Delivery Requested by Customer
+                      </div>
+                      {(ord.delivery_state || ord.delivery_lga) && (
+                        <p className="text-[11px] font-bold text-amber-200">
+                          {[ord.delivery_lga ? `${ord.delivery_lga} LGA` : null, ord.delivery_state ? `${ord.delivery_state} State` : null].filter(Boolean).join(', ')}
+                        </p>
+                      )}
+                      <p className="text-[11px] text-slate-200">{ord.delivery_address}</p>
+                      {ord.delivery_phone && (
+                        <p className="text-[11px] text-amber-300 font-mono">
+                          Primary Tel: <a href={`tel:${ord.delivery_phone}`} className="underline">{ord.delivery_phone}</a>
+                        </p>
+                      )}
+                      {ord.delivery_alt_phone && (
+                        <p className="text-[11px] text-emerald-300 font-mono">
+                          In-Case Tel: <a href={`tel:${ord.delivery_alt_phone}`} className="underline">{ord.delivery_alt_phone}</a>
+                        </p>
+                      )}
+                      {ord.delivery_notes && (
+                        <p className="text-[10px] text-slate-400">Note: {ord.delivery_notes}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Handover Mode:</span>
+                      <span className="font-bold text-slate-300">🏪 In-Shop Pickup</span>
+                    </div>
+                  )
+                  )}
                 </div>
 
                 {/* Actions */}

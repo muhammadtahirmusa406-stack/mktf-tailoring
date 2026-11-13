@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/utils/supabase-server';
@@ -49,7 +49,7 @@ export async function createSchoolProjectAction(formData: FormData) {
       .single();
 
     if (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: error?.message || 'Unexpected database error' };
     }
 
     revalidatePath('/admin/school-projects');
@@ -95,13 +95,13 @@ export async function addSchoolStudentAction(payload: {
   }).select().single();
 
   if (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: error?.message || 'Unexpected database error' };
   }
 
   return { success: true, student: data };
 
   if (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: error?.message || 'Unexpected database error' };
   }
 
   revalidatePath(`/admin/school-projects/${projectId}`);
@@ -133,7 +133,7 @@ export async function assignStudentsBranchAction(payload: {
 
     if (error) {
       console.error('Error assigning branch:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error?.message || 'Unexpected database error' };
     }
 
     revalidatePath(`/admin/school-projects/${projectId}`);
@@ -227,7 +227,7 @@ export async function flagStudentReturnAction(studentId: string, projectId: stri
     })
     .eq('id', studentId);
 
-  if (error) return { success: false, error: error.message };
+  if (error) return { success: false, error: error?.message || 'Unexpected database error' };
 
   revalidatePath(`/admin/school-projects/${projectId}`);
   return { success: true };
@@ -315,7 +315,7 @@ export async function updateSchoolStudentAction(payload: {
       .eq('id', studentId);
 
     if (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: error?.message || 'Unexpected database error' };
     }
 
     revalidatePath(`/admin/school-projects/${projectId}`);
