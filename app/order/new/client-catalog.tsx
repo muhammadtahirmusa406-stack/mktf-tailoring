@@ -79,6 +79,21 @@ export default function OrderCatalogClient({
   const [returningData, setReturningData] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [highlightContact, setHighlightContact] = useState(false);
+
+  React.useEffect(() => {
+    const onStepKeys = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === 'ArrowRight' && currentStep === 1) {
+        e.preventDefault();
+        handleProceedToStep2();
+      } else if (e.key === 'ArrowLeft' && currentStep > 1) {
+        e.preventDefault();
+        setCurrentStep((s) => (s === 4 ? 3 : s === 3 ? 2 : 1));
+      }
+    };
+    window.addEventListener('keydown', onStepKeys);
+    return () => window.removeEventListener('keydown', onStepKeys);
+  });
   const customerInfoRef = React.useRef<HTMLDivElement | null>(null);
   const nameInputRef = React.useRef<HTMLInputElement | null>(null);
   const phoneInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -514,7 +529,7 @@ export default function OrderCatalogClient({
                       Full Name <span style={{ color: '#dc2626' }}>*</span>
                     </span>
                     <input
-                      ref={nameInputRef}
+                      ref={nameInputRef} enterKeyHint="next" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); phoneInputRef.current?.focus(); } }}
                       type="text"
                       placeholder="e.g. Sani Musa"
                       value={customerName}
@@ -539,7 +554,7 @@ export default function OrderCatalogClient({
                       WhatsApp / Phone Number <span style={{ color: '#dc2626' }}>*</span>
                     </span>
                     <input
-                      ref={phoneInputRef}
+                      ref={phoneInputRef} inputMode="tel" enterKeyHint="go" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleProceedToStep2(); } }}
                       type="tel"
                       placeholder="e.g. 08012345678"
                       value={customerPhone}
