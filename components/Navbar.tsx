@@ -324,6 +324,31 @@ export default function Navbar({ role }: { role?: string }) {
             </span>
           </Link>
 
+                    <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('mktf:open-keymap'))}
+            title="Keymap & Shortcuts (?)"
+            className="w-full flex items-center justify-between gap-2 px-2.5 py-2.5 rounded-xl text-xs font-bold text-slate-300 hover:text-amber-300 hover:bg-slate-800/80 transition whitespace-nowrap cursor-pointer"
+          >
+            <span className="flex items-center gap-3">
+              <span className="text-base w-5 text-center shrink-0">⌨️</span>
+              <span
+                className={`transition-opacity duration-150 ${
+                  sidebarHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+              >
+                Keymap &amp; Shortcuts
+              </span>
+            </span>
+            <kbd
+              className={`transition-opacity duration-150 px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-800 border border-slate-700 text-amber-400 ${
+                sidebarHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
+            >
+              ?
+            </kbd>
+          </button>
+
           <button
             type="button"
             onClick={handleSignOut}
