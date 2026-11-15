@@ -78,22 +78,45 @@ export default function OrderCatalogClient({
 
   const [returningData, setReturningData] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [highlightContact, setHighlightContact] = useState(false);
+  const customerInfoRef = React.useRef<HTMLDivElement | null>(null);
+  const nameInputRef = React.useRef<HTMLInputElement | null>(null);
+  const phoneInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const handleProceedToStep2 = async () => {
+    if (!customerName.trim() || !customerPhone.trim()) {
+      const missingBoth = !customerName.trim() && !customerPhone.trim();
+      const missingField = !customerName.trim() ? 'Full Name' : 'WhatsApp / Phone Number';
+      setHighlightContact(true);
+      setErrorMessage(
+        missingBoth
+          ? 'Hold on! Please enter your Full Name and WhatsApp / Phone Number first so we can link your design and generate your tracking code.'
+          : `Almost there! Please enter your ${missingField} before continuing to measurements.`
+      );
+      if (customerInfoRef.current) {
+        customerInfoRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      setTimeout(() => {
+        if (!customerName.trim()) {
+          nameInputRef.current?.focus();
+        } else {
+          phoneInputRef.current?.focus();
+        }
+      }, 320);
+      return;
+    }
+    setHighlightContact(false);
+
     if (!selectedStyle) {
-      setErrorMessage('Please select a Tailoring Garment (cutting style) before continuing.');
+      setErrorMessage('Please choose a Tailoring Garment (cutting style) before continuing.');
       return;
     }
     if (!isCustomDesign && !selectedDesign) {
-      setErrorMessage('Please select an Embroidery / Artwork design or upload your own design photo.');
+      setErrorMessage('Please select an Embroidery / Artwork design—or upload your own design photo—before continuing.');
       return;
     }
     if (isCustomDesign && !customDesignFile) {
       setErrorMessage('Please upload your custom design reference picture before continuing.');
-      return;
-    }
-    if (!customerName.trim() || !customerPhone.trim()) {
-      setErrorMessage('Please enter your full name and phone number to continue.');
       return;
     }
     setErrorMessage('');
@@ -446,34 +469,94 @@ export default function OrderCatalogClient({
           {/* Main Selectors Column */}
           <div style={{ display: 'grid', gap: '32px' }}>
             
-              {/* 0. Customer Identification */}
-              <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: '0 0 12px' }}>
-                  1. Customer Information
-                </h2>
+              {/* 1. High-Visibility Customer Identification Card */}
+              <div
+                ref={customerInfoRef}
+                style={{
+                  background: 'linear-gradient(135deg, #fffbeb 0%, #ffffff 55%, #f8fafc 100%)',
+                  padding: '22px',
+                  borderRadius: '16px',
+                  border: highlightContact ? '2.5px solid #dc2626' : '2px solid #f59e0b',
+                  boxShadow: highlightContact
+                    ? '0 10px 28px rgba(220, 38, 38, 0.16)'
+                    : '0 8px 24px rgba(245, 158, 11, 0.12)',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#0f172a', color: '#fbbf24', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.85rem' }}>
+                      1
+                    </span>
+                    <h2 style={{ fontSize: '1.15rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                      Customer Information
+                    </h2>
+                  </div>
+
+                  {customerName.trim() && customerPhone.trim() ? (
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#15803d', background: '#dcfce7', border: '1px solid #86efac', padding: '4px 10px', borderRadius: '9999px' }}>
+                      ✓ Contact Details Ready
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', padding: '4px 10px', borderRadius: '9999px' }}>
+                      ★ Required First Step
+                    </span>
+                  )}
+                </div>
+
+                <p style={{ margin: '0 0 14px', fontSize: '0.83rem', color: '#475569' }}>
+                  Enter your name and active phone number so we can save your measurements and generate your order tracking receipt.
+                </p>
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                   <label style={{ display: 'grid', gap: '6px' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
                       Full Name <span style={{ color: '#dc2626' }}>*</span>
                     </span>
                     <input
+                      ref={nameInputRef}
                       type="text"
                       placeholder="e.g. Sani Musa"
                       value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
+                      onChange={(e) => {
+                        setCustomerName(e.target.value);
+                        if (errorMessage) setErrorMessage('');
+                        if (highlightContact && e.target.value.trim() && customerPhone.trim()) setHighlightContact(false);
+                      }}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        border: highlightContact && !customerName.trim() ? '2px solid #dc2626' : '1.5px solid #cbd5e1',
+                        background: '#ffffff',
+                        fontSize: '0.96rem',
+                        fontWeight: 600,
+                        color: '#0f172a',
+                      }}
                     />
                   </label>
                   <label style={{ display: 'grid', gap: '6px' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
                       WhatsApp / Phone Number <span style={{ color: '#dc2626' }}>*</span>
                     </span>
                     <input
+                      ref={phoneInputRef}
                       type="tel"
                       placeholder="e.g. 08012345678"
                       value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
+                      onChange={(e) => {
+                        setCustomerPhone(e.target.value);
+                        if (errorMessage) setErrorMessage('');
+                        if (highlightContact && customerName.trim() && e.target.value.trim()) setHighlightContact(false);
+                      }}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        border: highlightContact && !customerPhone.trim() ? '2px solid #dc2626' : '1.5px solid #cbd5e1',
+                        background: '#ffffff',
+                        fontSize: '0.96rem',
+                        fontWeight: 600,
+                        color: '#0f172a',
+                      }}
                     />
                   </label>
                 </div>
@@ -543,7 +626,7 @@ export default function OrderCatalogClient({
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>
-                  2. Select Embroidery / Artwork
+                  3. Select Embroidery / Artwork
                 </h2>
                 {isCustomDesign ? (
                   <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '3px 10px', borderRadius: '20px' }}>
@@ -772,25 +855,47 @@ export default function OrderCatalogClient({
               )}
             </div>
 
+            {errorMessage && (
+              <div
+                role="alert"
+                style={{
+                  background: '#fef2f2',
+                  border: '1.5px solid #fca5a5',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  marginBottom: '14px',
+                  color: '#991b1b',
+                  fontSize: '0.83rem',
+                  fontWeight: 700,
+                  lineHeight: 1.45,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '8px',
+                }}
+              >
+                <span style={{ fontSize: '1rem', lineHeight: 1.2 }}>⚠️</span>
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
             <button
-                type="button"
-                onClick={handleProceedToStep2}
-                disabled={!selectedStyle || checkingCustomer}
+              type="button"
+              onClick={handleProceedToStep2}
+              disabled={checkingCustomer}
               style={{
                 width: '100%',
                 padding: '14px 20px',
-                borderRadius: '10px',
-                background: selectedStyle ? '#0f172a' : '#cbd5e1',
+                borderRadius: '12px',
+                border: 'none',
+                background: '#0f172a',
                 color: '#ffffff',
                 fontWeight: 800,
-                fontSize: '0.96rem',
-                border: 'none',
-                cursor: selectedStyle ? 'pointer' : 'not-allowed',
-                boxShadow: selectedStyle ? '0 4px 12px rgba(15,23,42,0.18)' : 'none',
-                transition: 'all 0.15s ease',
+                fontSize: '1rem',
+                cursor: checkingCustomer ? 'wait' : 'pointer',
+                transition: 'background 0.2s',
               }}
             >
-              {selectedStyle ? 'Continue to Measurements →' : 'Pick a Garment to Continue'}
+              {checkingCustomer ? 'Checking Profile...' : 'Continue to Measurements →'}
             </button>
           </div>
         </div>
