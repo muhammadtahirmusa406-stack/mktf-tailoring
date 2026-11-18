@@ -17,7 +17,7 @@ async function compressImageForUpload(file: File, maxDim = 1400, quality = 0.82)
     return file;
   }
   return new Promise((resolve) => {
-    const img = new Image();
+    const img = new window.Image();
     const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
