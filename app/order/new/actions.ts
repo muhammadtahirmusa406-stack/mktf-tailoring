@@ -431,6 +431,37 @@ export async function submitOrderWithReceiptAction(formData: FormData) {
   }
 }
 
+async function uploadWithRetry(
+  supabase: any,
+  bucket: string,
+  path: string,
+  buffer: Buffer,
+  contentType: string,
+  maxAttempts = 3
+) {
+  let lastError: any = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .upload(path, buffer, {
+          contentType,
+          upsert: true,
+        });
+      if (!error && data) {
+        return { data, error: null };
+      }
+      lastError = error;
+    } catch (err: any) {
+      lastError = err;
+    }
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, 450 * attempt));
+    }
+  }
+  return { data: null, error: lastError };
+}
+
 export async function submitCustomDesignQuoteAction(formData: FormData) {
   try {
     const supabase = await createClient();
@@ -450,16 +481,17 @@ export async function submitCustomDesignQuoteAction(formData: FormData) {
     const fileName = `custom_designs/design_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
     const buffer = Buffer.from(await designFile.arrayBuffer());
 
-    const { data: uploadData, error: uploadErr } = await supabase.storage
-      .from('receipts')
-      .upload(fileName, buffer, {
-        contentType: designFile.type || 'image/jpeg',
-        upsert: true,
-      });
+        const { data: uploadData, error: uploadErr } = await uploadWithRetry(
+      supabase,
+      'receipts',
+      fileName,
+      buffer,
+      designFile.type || 'image/jpeg'
+    );
 
     if (uploadErr || !uploadData) {
       console.error('Custom design upload error:', uploadErr);
-      return { success: false, error: 'Failed to upload custom design image: ' + (uploadErr?.message || 'Storage rejected file') };
+      const rawMsg = uploadErr?.message || 'Storage rejected file'; const friendlyMsg = /fetch failed/i.test(rawMsg) ? 'Network timeout reaching Supabase Storage. Please check your internet connection and click Submit again.' : rawMsg; return { success: false, error: 'Failed to upload custom design image: ' + friendlyMsg };
     }
 
     const { data: publicUrlData } = supabase.storage

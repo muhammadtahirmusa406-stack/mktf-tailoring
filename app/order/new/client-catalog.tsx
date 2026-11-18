@@ -236,7 +236,8 @@ export default function OrderCatalogClient({
           amountToPay: amountDue,
         })
       );
-      formData.append('receiptFile', receiptFile);
+      const optimizedReceiptFile = await compressImageForUpload(receiptFile);
+      formData.append('receiptFile', optimizedReceiptFile);
       if (verificationResult) {
         formData.append('verificationData', JSON.stringify(verificationResult.extractedData));
       }
@@ -419,7 +420,8 @@ export default function OrderCatalogClient({
             },
           })
         );
-        fd.append('customDesignFile', customDesignFile);
+        const optimizedDesignFile = await compressImageForUpload(customDesignFile);
+        fd.append('customDesignFile', optimizedDesignFile);
         const res = await submitCustomDesignQuoteAction(fd);
         if (res && res.success && res.orderReference) {
           router.push(`/track?ref=${res.orderReference}`);
