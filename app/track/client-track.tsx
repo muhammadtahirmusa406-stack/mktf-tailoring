@@ -524,8 +524,20 @@ export default function TrackOrderPageClient({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <input
                           type="number"
+                          min={0}
+                          step={500}
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={counterOfferAmount}
-                          onChange={(e) => setCounterOfferAmount(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (['.', ',', '-', '+', 'e', 'E'].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
+                          onChange={(e) => {
+                            const digitsOnly = e.target.value.replace(/\D/g, '');
+                            setCounterOfferAmount(digitsOnly);
+                          }}
                           placeholder="Your Counter-Offer (₦)..."
                           className="rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white font-mono focus:border-amber-500 focus:outline-none"
                         />

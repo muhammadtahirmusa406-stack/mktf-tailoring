@@ -299,7 +299,21 @@ export default function OrdersProgressionClient({
                           <input
                             type="number"
                             name="quotedPrice"
-                            defaultValue={ord.total_price > 0 ? ord.total_price : ''}
+                            min={0}
+                            step={500}
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            defaultValue={ord.total_price > 0 ? Math.round(Number(ord.total_price)) : ''}
+                            onKeyDown={(e) => {
+                              if (['.', ',', '-', '+', 'e', 'E'].includes(e.key)) {
+                                e.preventDefault();
+                              }
+                            }}
+                            onInput={(e) => {
+                              const el = e.currentTarget;
+                              const digitsOnly = el.value.replace(/\D/g, '');
+                              if (el.value !== digitsOnly) el.value = digitsOnly;
+                            }}
                             placeholder="Set Quote (₦)"
                             className="w-1/2 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white font-mono"
                           />
