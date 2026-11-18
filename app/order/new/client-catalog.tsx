@@ -6,12 +6,6 @@ import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createNewOrderAction, checkReturningCustomerAction, getAtelierSettingsAction, submitOrderWithReceiptAction, submitCustomDesignQuoteAction } from './actions';
 
-interface OrderCatalogClientProps {
-  initialStyles?: any[] | null;
-  initialDesigns?: any[] | null;
-  initialStyleMeasurements?: any[] | null;
-}
-
 async function compressImageForUpload(file: File, maxDim = 1400, quality = 0.82): Promise<File> {
   if (!file.type.startsWith('image/') || file.size <= 450 * 1024) {
     return file;
@@ -59,6 +53,12 @@ async function compressImageForUpload(file: File, maxDim = 1400, quality = 0.82)
     };
     img.src = objectUrl;
   });
+}
+
+interface OrderCatalogClientProps {
+  initialStyles?: any[] | null;
+  initialDesigns?: any[] | null;
+  initialStyleMeasurements?: any[] | null;
 }
 export default function OrderCatalogClient({
   initialStyles = [],
