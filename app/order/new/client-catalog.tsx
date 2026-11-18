@@ -12,6 +12,54 @@ interface OrderCatalogClientProps {
   initialStyleMeasurements?: any[] | null;
 }
 
+async function compressImageForUpload(file: File, maxDim = 1400, quality = 0.82): Promise<File> {
+  if (!file.type.startsWith('image/') || file.size <= 450 * 1024) {
+    return file;
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const cleanName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+          resolve(new File([blob], cleanName, { type: 'image/jpeg', lastModified: Date.now() }));
+        },
+        'image/jpeg',
+        quality
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file);
+    };
+    img.src = objectUrl;
+  });
+}
 export default function OrderCatalogClient({
   initialStyles = [],
   initialDesigns = [],
